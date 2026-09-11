@@ -10,33 +10,28 @@ own hand-written fetch wrapper (`src/api.js`) that mirrors it.
                     │   api/ (FastAPI)     │
                     │                      │
                     │  SQLite: booklibrary.db
-                    │  Disk:   uploads/    │
                     └──────────┬───────────┘
-                     REST/JSON │ multipart upload
+                          REST/JSON
                      ┌─────────┴─────────┐
                      │                   │
            ┌─────────▼────────┐  ┌───────▼──────────┐
            │  admin/ (Vite)    │  │  mobile/ (Expo)   │
-           │  upload + delete  │  │  browse + read    │
-           │  http://:5173     │  │  Expo Go / APK    │
+           │  create + delete  │  │  browse + read     │
+           │  http://:5173     │  │  Expo Go           │
            └───────────────────┘  └───────────────────┘
 ```
 
 ## api/ — system of record
 
-FastAPI + SQLAlchemy, single `Book` table in SQLite (`api/booklibrary.db`). Files live on
-local disk under `api/uploads/`, named `<uuid>-<original filename>` to avoid collisions;
-the DB row's `file_name` column holds that generated name, and the original name is
-recovered only at download time (`GET /api/books/{id}/file` strips the UUID prefix back off
-for the `Content-Disposition` filename).
+FastAPI + SQLAlchemy, single `Post` table in SQLite (`api/booklibrary.db`) — `title`,
+`author`, `description` (long text), `created_at`. This is the only stateful piece. Both
+clients are otherwise stateless — reloading either one just re-fetches from
+`GET /api/posts`.
 
-This is the only stateful piece. Both clients are otherwise stateless — reloading either
-one just re-fetches from `GET /api/books`.
-
-Validation lives entirely in `POST /api/books`: extension allowlist (`.pdf`, `.epub`) and a
-50MB size cap, both enforced server-side. Neither client duplicates this validation beyond
-the file picker's `accept` filter, so a client bypassing the picker (or a raw API call) is
-still caught by the server.
+`POST /api/posts` takes a plain JSON body; validation is whatever Pydantic's `PostCreate`
+schema enforces (all three fields required, no length caps). There's no file handling
+anywhere in this system — an earlier version of this app accepted PDF/EPUB uploads with
+local disk storage; that was removed in favor of a plain text `description` field.
 
 CORS is wide open (`allow_origins=["*"]`) — this is a deliberate dev-only choice, not an
 oversight; there's no auth anywhere in the system, so tightening CORS without adding auth
@@ -45,30 +40,27 @@ wouldn't add real protection.
 ## admin/ — the only way to mutate data
 
 The admin panel is the sole write path in the system: it's the only client that calls
-`POST /api/books` and `DELETE /api/books/{id}`. The mobile app is read-only by construction
-(`mobile/src/api.js` only exposes `fetchBooks`/`fileUrl`) — there's no reason for a phone to
-upload a library file over a REST multipart call, so that path was never built there.
+`POST /api/posts` and `DELETE /api/posts/{id}`. The mobile app is read-only by construction
+(`mobile/src/api.js` only exposes `fetchPosts`) — there's no create/edit flow on mobile.
 
-State management is intentionally naive: every mutation (upload, delete) triggers a full
-re-`fetchBooks()` rather than patching local state optimistically. For a single-table admin
+State management is intentionally naive: every mutation (create, delete) triggers a full
+re-`fetchPosts()` rather than patching local state optimistically. For a single-table admin
 tool with no concurrent multi-user editing story, this trades a bit of latency for zero
 state-sync bugs.
 
 ## mobile/ — read + render
 
-Two-screen stack (`HomeScreen` → `ReaderScreen`, wired in `App.js` via
-`@react-navigation/native-stack`). The interesting architectural decision is in
-`ReaderScreen`: rather than manually downloading the file and pointing a viewer at a local
-path, it hands the *remote* URL straight to `react-native-pdf`'s `source.uri`, and lets that
-library's internal use of `react-native-blob-util` handle streaming/caching. This keeps the
-app free of any manual download-progress or temp-file-cleanup code, at the cost of the PDF
-reader depending on a native module that Expo Go doesn't ship — see
-`mobile/ANDROID_BUILD.md` for what that costs in practice (a full native prebuild instead of
-`expo start`).
+Two-screen stack (`HomeScreen` → `PostDetailScreen`, wired in `App.js` via
+`@react-navigation/native-stack`). `PostDetailScreen` does no fetching of its own — the full
+post object (including `description`) is already in memory from the list screen and is
+passed through as a navigation param, so opening a post is instant with no loading state.
 
-EPUB is a placeholder path (extension-sniffed in `ReaderScreen`, falls back to
-"open in browser"), not a partial implementation — no Expo-compatible EPUB renderer was
-wired in, and that's called out as a known follow-up rather than left silent.
+This app has zero native module dependencies and runs entirely in Expo Go. That wasn't
+always true: an earlier version rendered PDFs via `react-native-pdf`/`react-native-blob-util`,
+which forced a full native prebuild (`mobile/ANDROID_BUILD.md` documents the from-scratch
+Android SDK setup that required). Dropping file/PDF support in favor of plain text posts
+also dropped that entire native-build requirement — worth keeping in mind if file support
+ever comes back, since it reintroduces that cost.
 
 ## Why no shared package
 

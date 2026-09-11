@@ -1,6 +1,6 @@
 # booklibrary-api
 
-FastAPI backend for the BookLibrary app. Stores book metadata in SQLite (`booklibrary.db`) and files on disk under `uploads/`.
+FastAPI backend for the BookLibrary app. Stores posts (title, author, description) in SQLite (`booklibrary.db`).
 
 ## Setup
 
@@ -21,17 +21,16 @@ API runs at http://localhost:8000. Interactive docs at http://localhost:8000/doc
 
 ## Endpoints
 
-| Method | Path                  | Description                          |
-|--------|-----------------------|--------------------------------------|
-| GET    | /api/books            | List all books                       |
-| GET    | /api/books/{id}       | Get one book's metadata              |
-| GET    | /api/books/{id}/file  | Download/stream the book file        |
-| POST   | /api/books            | Upload a new book (multipart/form)   |
-| DELETE | /api/books/{id}       | Delete a book's record and its file  |
+| Method | Path             | Description             |
+|--------|------------------|--------------------------|
+| GET    | /api/posts       | List all posts           |
+| GET    | /api/posts/{id}  | Get one post              |
+| POST   | /api/posts       | Create a new post (JSON)  |
+| DELETE | /api/posts/{id}  | Delete a post              |
 
-`POST /api/books` expects multipart/form-data fields: `title`, `author`, `file` (`.pdf` or `.epub`, max 50MB).
+`POST /api/posts` expects a JSON body: `{"title": "...", "author": "...", "description": "..."}`.
 
 ## Notes
 
 - CORS is open to all origins — this is for local development only; lock it down before deploying.
-- The SQLite file and uploaded files are created relative to the working directory the server is started from (the `api/` folder).
+- The SQLite file is created relative to the working directory the server is started from (the `api/` folder).

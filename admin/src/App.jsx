@@ -1,33 +1,32 @@
 import { useEffect, useState } from 'react'
-import { fetchBooks, uploadBook, deleteBook, fileUrl } from './api'
+import { fetchPosts, createPost, deletePost } from './api'
 import './App.css'
-
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 function formatDate(iso) {
   return new Date(iso).toLocaleString()
 }
 
+function truncate(text, max = 120) {
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}…`
+}
+
 function App() {
-  const [books, setBooks] = useState([])
+  const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
-  const [file, setFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState(null)
+  const [description, setDescription] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
 
-  async function loadBooks() {
+  async function loadPosts() {
     setLoading(true)
     setError(null)
     try {
-      setBooks(await fetchBooks())
+      setPosts(await fetchPosts())
     } catch (err) {
       setError(err.message)
     } finally {
@@ -36,34 +35,33 @@ function App() {
   }
 
   useEffect(() => {
-    loadBooks()
+    loadPosts()
   }, [])
 
-  async function handleUpload(e) {
+  async function handleCreate(e) {
     e.preventDefault()
-    if (!title || !author || !file) return
+    if (!title || !author || !description) return
 
-    setUploading(true)
-    setUploadError(null)
+    setCreating(true)
+    setCreateError(null)
     try {
-      await uploadBook({ title, author, file })
+      await createPost({ title, author, description })
       setTitle('')
       setAuthor('')
-      setFile(null)
-      e.target.reset()
-      await loadBooks()
+      setDescription('')
+      await loadPosts()
     } catch (err) {
-      setUploadError(err.message)
+      setCreateError(err.message)
     } finally {
-      setUploading(false)
+      setCreating(false)
     }
   }
 
-  async function handleDelete(book) {
-    if (!confirm(`Delete "${book.title}"? This cannot be undone.`)) return
+  async function handleDelete(post) {
+    if (!confirm(`Delete "${post.title}"? This cannot be undone.`)) return
     try {
-      await deleteBook(book.id)
-      await loadBooks()
+      await deletePost(post.id)
+      await loadPosts()
     } catch (err) {
       alert(err.message)
     }
@@ -74,8 +72,8 @@ function App() {
       <h1>BookLibrary Admin</h1>
 
       <section className="panel">
-        <h2>Upload a book</h2>
-        <form className="upload-form" onSubmit={handleUpload}>
+        <h2>New post</h2>
+        <form className="upload-form" onSubmit={handleCreate}>
           <input
             type="text"
             placeholder="Title"
@@ -90,48 +88,45 @@ function App() {
             onChange={(e) => setAuthor(e.target.value)}
             required
           />
-          <input
-            type="file"
-            accept=".pdf,.epub"
-            onChange={(e) => setFile(e.target.files[0] ?? null)}
+          <textarea
+            placeholder="Description"
+            rows={6}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             required
           />
-          <button type="submit" disabled={uploading}>
-            {uploading ? 'Uploading…' : 'Upload'}
+          <button type="submit" disabled={creating}>
+            {creating ? 'Posting…' : 'Post'}
           </button>
         </form>
-        {uploadError && <p className="error">{uploadError}</p>}
+        {createError && <p className="error">{createError}</p>}
       </section>
 
       <section className="panel">
-        <h2>Library ({books.length})</h2>
+        <h2>Posts ({posts.length})</h2>
         {loading && <p>Loading…</p>}
         {error && <p className="error">{error}</p>}
-        {!loading && !error && books.length === 0 && <p>No books yet.</p>}
-        {!loading && !error && books.length > 0 && (
+        {!loading && !error && posts.length === 0 && <p>No posts yet.</p>}
+        {!loading && !error && posts.length > 0 && (
           <table>
             <thead>
               <tr>
                 <th>Title</th>
                 <th>Author</th>
-                <th>Size</th>
-                <th>Uploaded</th>
+                <th>Description</th>
+                <th>Created</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {books.map((book) => (
-                <tr key={book.id}>
+              {posts.map((post) => (
+                <tr key={post.id}>
+                  <td>{post.title}</td>
+                  <td>{post.author}</td>
+                  <td>{truncate(post.description)}</td>
+                  <td>{formatDate(post.created_at)}</td>
                   <td>
-                    <a href={fileUrl(book.id)} target="_blank" rel="noreferrer">
-                      {book.title}
-                    </a>
-                  </td>
-                  <td>{book.author}</td>
-                  <td>{formatSize(book.file_size_bytes)}</td>
-                  <td>{formatDate(book.uploaded_at)}</td>
-                  <td>
-                    <button className="danger" onClick={() => handleDelete(book)}>
+                    <button className="danger" onClick={() => handleDelete(post)}>
                       Delete
                     </button>
                   </td>

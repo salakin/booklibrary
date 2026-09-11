@@ -2,9 +2,11 @@
 
 Monorepo with three parts:
 
-- [api/](api/) — FastAPI backend (booklibrary-api), SQLite + local disk storage
+- [api/](api/) — FastAPI backend (booklibrary-api), SQLite storage
 - [admin/](admin/) — React (Vite) admin panel (BookLibrary.Admin)
 - [mobile/](mobile/) — Expo React Native app (BookLibraryMobile)
+
+Each post has a title, author, and long text description — there's no file upload/PDF reading in this app.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the three fit together, [AGENTS.md](AGENTS.md) for AI-agent-specific working notes, and [CLAUDE.md](CLAUDE.md) for Claude Code.
 
@@ -37,16 +39,12 @@ Opens at http://localhost:5173. Reads the API URL from `admin/.env` (`VITE_API_B
 ```bash
 cd mobile
 npm install
-npx expo prebuild
-npx expo run:android    # or: npx expo run:ios (macOS only)
+npx expo start
 ```
 
-Set the API URL in [mobile/config.js](mobile/config.js) first — use your machine's LAN IP if testing on a physical device. See [mobile/README.md](mobile/README.md) for why `react-native-pdf` needs a prebuild/dev client instead of plain Expo Go.
-
-A debug APK has already been built once on this machine without Android Studio — see [mobile/ANDROID_BUILD.md](mobile/ANDROID_BUILD.md) for the exact command-line SDK setup, env vars, and gotchas. Output: `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
+Set the API URL in [mobile/config.js](mobile/config.js) first — use your machine's LAN IP if testing on a physical device. No native build needed — this app has no native module dependencies and runs entirely in Expo Go.
 
 ## Notes
 
 - CORS on the API is wide open (`*`) — dev only.
-- Uploaded files land in `api/uploads/`; metadata lives in `api/booklibrary.db` (both git-ignored).
-- Allowed upload types: `.pdf`, `.epub`. Max size: 50MB.
+- Post metadata lives in `api/booklibrary.db` (git-ignored).

@@ -1,5 +1,10 @@
 # Building the Android APK locally
 
+> **Currently not needed.** This app dropped its native dependencies
+> (`react-native-pdf`, `react-native-blob-util`) when it pivoted from a PDF/ebook reader to
+> a plain text-post app — it now runs entirely in Expo Go, no prebuild or native Android
+> build required. This doc is kept for reference in case native modules get added again.
+
 This machine has no Android Studio. Everything needed to build a debug APK was installed
 by hand as command-line tools. This doc records exactly what's installed, where, and the
 gotchas hit getting `gradlew assembleDebug` to succeed, so it doesn't need to be

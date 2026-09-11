@@ -12,6 +12,8 @@ This is a monorepo with three independent projects, each with its own dependency
 
 The backend must be running for either client to do anything useful — both talk to it over HTTP, there is no shared code between the three.
 
+Each post is a `{title, author, description}` record — there is no file upload or PDF/EPUB reading in this app (an earlier version had that; it was removed).
+
 ## Commands
 
 ### api/ (FastAPI + SQLAlchemy + SQLite)
@@ -43,12 +45,10 @@ No test suite is configured for this project.
 ```bash
 cd mobile
 npm install
-npx expo start                          # JS-only, Home screen works in Expo Go
-npx expo prebuild --platform android    # generates android/ (required for the PDF reader)
-npx expo run:android                    # or run:ios (macOS only)
+npx expo start
 ```
 
-`react-native-pdf` / `react-native-blob-util` are native modules — the Reader screen only works after a prebuild + native run (or a custom EAS dev client), not in a stock Expo Go session. If this machine has no Android Studio, see `mobile/ANDROID_BUILD.md` for the exact command-line-only Android SDK setup (JDK version, `ANDROID_HOME`, `local.properties` gotchas) that was used to produce a working debug APK. No test suite is configured for this project.
+No native module dependencies — the app runs entirely in Expo Go, no prebuild or native build needed. (`mobile/ANDROID_BUILD.md` documents a from-scratch Android SDK setup from when this app used native PDF-reading modules; kept for reference only, not currently relevant.) No test suite is configured for this project.
 
 ## Architecture
 
@@ -56,18 +56,14 @@ npx expo run:android                    # or run:ios (macOS only)
 
 Three files hold essentially the whole app:
 - `database.py` — SQLAlchemy engine/session setup, SQLite file at `api/booklibrary.db` (created on first run, relative to wherever uvicorn is started from).
-- `models.py` — the single `Book` ORM model (`id`, `title`, `author`, `file_name`, `file_size_bytes`, `uploaded_at`).
-- `schemas.py` — Pydantic `BookOut`/`BookBase` response/request shapes.
-- `main.py` — all five routes (`GET /api/books`, `GET /api/books/{id}`, `GET /api/books/{id}/file`, `POST /api/books`, `DELETE /api/books/{id}`), CORS (wide open, dev-only), and upload validation (`.pdf`/`.epub` only, 50MB cap).
-
-Uploaded files are written to `api/uploads/<uuid>-<original filename>` and the `Book.file_name` column stores that generated name, not the original — `GET /api/books/{id}/file` strips the UUID prefix back off when setting the download filename. Deleting a book removes both the DB row and the file from disk in one request; if the file is already missing on disk, the row can still be deleted (no ordering guarantee is enforced between the two beyond what's in `delete_book`).
+- `models.py` — the single `Post` ORM model (`id`, `title`, `author`, `description`, `created_at`).
+- `schemas.py` — Pydantic `PostCreate`/`PostOut` request/response shapes.
+- `main.py` — all four routes (`GET /api/posts`, `GET /api/posts/{id}`, `POST /api/posts`, `DELETE /api/posts/{id}`) and CORS (wide open, dev-only). `POST /api/posts` takes a JSON body, not multipart — there's nothing to validate beyond what Pydantic already enforces.
 
 ### admin/
 
-Single-page app, no routing. `src/api.js` is the only place that knows the backend's shape (`fetchBooks`, `uploadBook`, `deleteBook`, `fileUrl`) — it reads the base URL from `VITE_API_BASE_URL` (set in `admin/.env`, defaults to `http://localhost:8000`). `src/App.jsx` owns all state (book list, upload form, loading/error) and re-fetches the full list after every mutation rather than patching local state — there is no optimistic UI.
+Single-page app, no routing. `src/api.js` is the only place that knows the backend's shape (`fetchPosts`, `createPost`, `deletePost`) — it reads the base URL from `VITE_API_BASE_URL` (set in `admin/.env`, defaults to `http://localhost:8000`). `src/App.jsx` owns all state (post list, create form, loading/error) and re-fetches the full list after every mutation rather than patching local state — there is no optimistic UI.
 
 ### mobile/
 
-Two-screen stack navigation (`@react-navigation/native-stack`, defined in `App.js`): `HomeScreen` → `ReaderScreen`. `src/api.js` mirrors the admin client but read-only (`fetchBooks`, `fileUrl`) and imports the base URL from the single `config.js` at the project root — that's the one file to edit when pointing at a different backend (e.g. a LAN IP for a physical device, since `localhost` on the phone means the phone itself).
-
-`ReaderScreen` branches on the file extension in `book.file_name`: `.pdf` renders via `react-native-pdf`, passing the remote `fileUrl(id)` directly as the `source.uri` (the library streams/caches it internally via `react-native-blob-util` — there's no manual download step in this codebase). `.epub` has no renderer wired up and falls back to an "open in browser" link (`Linking.openURL`) — this is a known gap, not an oversight; no Expo-managed-compatible EPUB reader was integrated.
+Two-screen stack navigation (`@react-navigation/native-stack`, defined in `App.js`): `HomeScreen` → `PostDetailScreen`. `src/api.js` mirrors the admin client but read-only (`fetchPosts`) and imports the base URL from the single `config.js` at the project root — that's the one file to edit when pointing at a different backend (e.g. a LAN IP for a physical device, since `localhost` on the phone means the phone itself). `PostDetailScreen` just renders the full `title`/`author`/`description` of whatever post object was passed via navigation params — no extra fetch on that screen.

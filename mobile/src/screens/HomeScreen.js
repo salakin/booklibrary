@@ -8,19 +8,24 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { fetchBooks } from '../api';
+import { fetchPosts } from '../api';
 
-function CoverPlaceholder({ title }) {
+function Avatar({ title }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
   return (
-    <View style={styles.cover}>
-      <Text style={styles.coverText}>{initial}</Text>
+    <View style={styles.avatar}>
+      <Text style={styles.avatarText}>{initial}</Text>
     </View>
   );
 }
 
+function truncate(text, max = 100) {
+  if (!text) return '';
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
 export default function HomeScreen({ navigation }) {
-  const [books, setBooks] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -28,7 +33,7 @@ export default function HomeScreen({ navigation }) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      setBooks(await fetchBooks());
+      setPosts(await fetchPosts());
     } catch (err) {
       setError(err.message || 'Something went wrong');
     }
@@ -56,7 +61,7 @@ export default function HomeScreen({ navigation }) {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Couldn't load your library.</Text>
+        <Text style={styles.errorText}>Couldn't load posts.</Text>
         <Text style={styles.errorDetail}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); load().finally(() => setLoading(false)); }}>
           <Text style={styles.retryText}>Retry</Text>
@@ -67,25 +72,26 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <FlatList
-      contentContainerStyle={books.length === 0 ? styles.emptyContainer : styles.list}
-      data={books}
+      contentContainerStyle={posts.length === 0 ? styles.emptyContainer : styles.list}
+      data={posts}
       keyExtractor={(item) => String(item.id)}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       ListEmptyComponent={
         <View style={styles.center}>
-          <Text style={styles.emptyText}>Your library is empty.</Text>
-          <Text style={styles.emptyDetail}>Upload a book from the admin panel to see it here.</Text>
+          <Text style={styles.emptyText}>No posts yet.</Text>
+          <Text style={styles.emptyDetail}>Create one from the admin panel to see it here.</Text>
         </View>
       }
       renderItem={({ item }) => (
         <TouchableOpacity
           style={styles.row}
-          onPress={() => navigation.navigate('Reader', { book: item })}
+          onPress={() => navigation.navigate('PostDetail', { post: item })}
         >
-          <CoverPlaceholder title={item.title} />
+          <Avatar title={item.title} />
           <View style={styles.rowText}>
             <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
             <Text style={styles.author} numberOfLines={1}>{item.author}</Text>
+            <Text style={styles.preview} numberOfLines={2}>{truncate(item.description)}</Text>
           </View>
         </TouchableOpacity>
       )}
@@ -99,7 +105,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
     padding: 12,
     marginBottom: 10,
     backgroundColor: '#fff',
@@ -110,19 +115,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
-  cover: {
-    width: 48,
-    height: 64,
-    borderRadius: 4,
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
-  coverText: { color: '#fff', fontSize: 22, fontWeight: '600' },
+  avatarText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   rowText: { flex: 1 },
   title: { fontSize: 16, fontWeight: '600', color: '#111' },
-  author: { fontSize: 14, color: '#666', marginTop: 2 },
+  author: { fontSize: 13, color: '#666', marginTop: 2 },
+  preview: { fontSize: 13, color: '#888', marginTop: 4 },
   errorText: { fontSize: 16, fontWeight: '600', color: '#dc2626', marginBottom: 6 },
   errorDetail: { fontSize: 13, color: '#666', textAlign: 'center', marginBottom: 16 },
   retryButton: { backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 6 },

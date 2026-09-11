@@ -3,15 +3,18 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
-class BookBase(BaseModel):
+class PostBase(BaseModel):
     title: str
     author: str
+    description: str
 
 
-class BookOut(BookBase):
+class PostCreate(PostBase):
+    pass
+
+
+class PostOut(PostBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    file_name: str
-    file_size_bytes: int
-    uploaded_at: datetime
+    created_at: datetime

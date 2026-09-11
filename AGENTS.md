@@ -8,12 +8,16 @@ design rationale).
 
 Three independent projects, no shared code:
 
-- `api/` — Python/FastAPI backend, source of truth (SQLite + local disk uploads)
+- `api/` — Python/FastAPI backend, source of truth (SQLite only, no file storage)
 - `admin/` — React/Vite web app, the only write client
 - `mobile/` — Expo/React Native app, read-only client
 
 Each has its own README with setup instructions; don't assume a command from one applies to
 another (different package managers, different languages).
+
+A post is `{title, author, description}` — there is no file upload or PDF/EPUB rendering
+anywhere in this app (an earlier version had that; it was deliberately removed in favor of
+a plain long-text `description` field). Don't reintroduce file handling without being asked.
 
 ## Before making changes
 
@@ -24,23 +28,20 @@ another (different package managers, different languages).
 - `admin/.env` and `mobile/config.js` both hardcode an API base URL independently — a
   backend port/host change needs updating in both places, there's no single source of truth
   for it.
-- `mobile/` has no Expo Go path for testing PDF rendering changes — `react-native-pdf` and
-  `react-native-blob-util` require a native prebuild (`npx expo prebuild && npx expo
-  run:android`). Don't assume `npx expo start` + Expo Go is sufficient for verifying reader
-  changes; it's only sufficient for `HomeScreen`/navigation changes.
+- `mobile/` has zero native module dependencies right now — `npx expo start` + Expo Go is
+  sufficient for testing any change. If a change reintroduces a native module, it brings back
+  the native-prebuild requirement documented in `mobile/ANDROID_BUILD.md` — that's a real
+  cost, not just a config tweak.
 
 ## Running things
 
 See `CLAUDE.md` for exact commands per project (backend venv/uvicorn, admin npm scripts,
-mobile Expo/Android build). `mobile/ANDROID_BUILD.md` has the full command-line-only
-Android SDK setup used when no Android Studio is present on the machine — read it before
-re-deriving Android toolchain paths/env vars from scratch.
+mobile Expo). `mobile/ANDROID_BUILD.md` is currently not relevant (kept for reference from
+when this app used native PDF-reading modules) — don't follow it unless a native module is
+actually back in the dependency tree.
 
 ## Known gaps (not bugs — don't "fix" without discussion)
 
 - No authentication anywhere in the system; CORS on the API is wide open. This is a
   deliberate dev-only posture, not an oversight.
-- EPUB files are not renderable in the mobile app (`ReaderScreen` shows a fallback
-  "open in browser" link). No shared code path was started for this — it's an open
-  follow-up, not a partial implementation to complete.
 - No automated tests exist in any of the three projects.
