@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "BookLibraryMobile",
-    "slug": "BookLibraryMobile",
+    "name": "Lawbook",
+    "slug": "lawbook",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
