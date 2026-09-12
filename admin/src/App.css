@@ -38,6 +38,11 @@ h1 {
   resize: vertical;
 }
 
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .upload-form button {
   align-self: flex-start;
   padding: 0.5rem 1.25rem;
@@ -65,6 +70,11 @@ td {
   border-bottom: 1px solid #eee;
 }
 
+.row-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 button.danger {
   padding: 0.35rem 0.75rem;
   border: none;
@@ -72,6 +82,20 @@ button.danger {
   background: #dc2626;
   color: #fff;
   cursor: pointer;
+}
+
+button.secondary {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+button.secondary:disabled {
+  color: #999;
+  cursor: not-allowed;
 }
 
 .error {

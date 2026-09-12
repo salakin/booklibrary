@@ -19,6 +19,19 @@ export async function createPost({ title, author, description }) {
   return res.json()
 }
 
+export async function updatePost(id, { title, author, description }) {
+  const res = await fetch(`${API_BASE_URL}/api/posts/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, author, description }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || 'Failed to update post')
+  }
+  return res.json()
+}
+
 export async function deletePost(id) {
   const res = await fetch(`${API_BASE_URL}/api/posts/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete post')

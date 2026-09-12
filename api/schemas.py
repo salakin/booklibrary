@@ -13,6 +13,10 @@ class PostCreate(PostBase):
     pass
 
 
+class PostUpdate(PostBase):
+    pass
+
+
 class PostOut(PostBase):
     model_config = ConfigDict(from_attributes=True)
 

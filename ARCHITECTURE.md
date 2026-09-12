@@ -40,12 +40,18 @@ wouldn't add real protection.
 ## admin/ — the only way to mutate data
 
 The admin panel is the sole write path in the system: it's the only client that calls
-`POST /api/posts` and `DELETE /api/posts/{id}`. The mobile app is read-only by construction
-(`mobile/src/api.js` only exposes `fetchPosts`) — there's no create/edit flow on mobile.
+`POST /api/posts`, `PUT /api/posts/{id}`, and `DELETE /api/posts/{id}`. The mobile app is
+read-only by construction (`mobile/src/api.js` only exposes `fetchPosts`) — there's no
+create/edit flow on mobile.
 
-State management is intentionally naive: every mutation (create, delete) triggers a full
-re-`fetchPosts()` rather than patching local state optimistically. For a single-table admin
-tool with no concurrent multi-user editing story, this trades a bit of latency for zero
+Editing reuses the same form as creating (`App.jsx` tracks an `editingId` — `null` means the
+form is in create mode, otherwise it's editing that post). `PUT /api/posts/{id}` replaces all
+three fields wholesale; there's no partial-update (PATCH-style) path, so the client always
+sends the full title/author/description even if only one changed.
+
+State management is intentionally naive: every mutation (create, update, delete) triggers a
+full re-`fetchPosts()` rather than patching local state optimistically. For a single-table
+admin tool with no concurrent multi-user editing story, this trades a bit of latency for zero
 state-sync bugs.
 
 ## mobile/ — read + render

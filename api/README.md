@@ -23,12 +23,13 @@ API runs at http://localhost:8000. Interactive docs at http://localhost:8000/doc
 
 | Method | Path             | Description             |
 |--------|------------------|--------------------------|
-| GET    | /api/posts       | List all posts           |
-| GET    | /api/posts/{id}  | Get one post              |
-| POST   | /api/posts       | Create a new post (JSON)  |
-| DELETE | /api/posts/{id}  | Delete a post              |
+| GET    | /api/posts       | List all posts             |
+| GET    | /api/posts/{id}  | Get one post                |
+| POST   | /api/posts       | Create a new post (JSON)    |
+| PUT    | /api/posts/{id}  | Update a post (JSON)        |
+| DELETE | /api/posts/{id}  | Delete a post                |
 
-`POST /api/posts` expects a JSON body: `{"title": "...", "author": "...", "description": "..."}`.
+`POST /api/posts` and `PUT /api/posts/{id}` expect a JSON body: `{"title": "...", "author": "...", "description": "..."}`.
 
 ## Notes
 

@@ -58,7 +58,7 @@ Three files hold essentially the whole app:
 - `database.py` — SQLAlchemy engine/session setup, SQLite file at `api/booklibrary.db` (created on first run, relative to wherever uvicorn is started from).
 - `models.py` — the single `Post` ORM model (`id`, `title`, `author`, `description`, `created_at`).
 - `schemas.py` — Pydantic `PostCreate`/`PostOut` request/response shapes.
-- `main.py` — all four routes (`GET /api/posts`, `GET /api/posts/{id}`, `POST /api/posts`, `DELETE /api/posts/{id}`) and CORS (wide open, dev-only). `POST /api/posts` takes a JSON body, not multipart — there's nothing to validate beyond what Pydantic already enforces.
+- `main.py` — all five routes (`GET /api/posts`, `GET /api/posts/{id}`, `POST /api/posts`, `PUT /api/posts/{id}`, `DELETE /api/posts/{id}`) and CORS (wide open, dev-only). `POST`/`PUT` take a JSON body, not multipart — there's nothing to validate beyond what Pydantic already enforces.
 
 ### admin/
 

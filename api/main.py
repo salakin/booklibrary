@@ -41,6 +41,20 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
     return db_post
 
 
+@app.put("/api/posts/{post_id}", response_model=schemas.PostOut)
+def update_post(post_id: int, post: schemas.PostUpdate, db: Session = Depends(get_db)):
+    db_post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    if not db_post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    for field, value in post.model_dump().items():
+        setattr(db_post, field, value)
+
+    db.commit()
+    db.refresh(db_post)
+    return db_post
+
+
 @app.delete("/api/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(post_id: int, db: Session = Depends(get_db)):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()

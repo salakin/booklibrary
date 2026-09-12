@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchPosts, createPost, deletePost } from './api'
+import { fetchPosts, createPost, updatePost, deletePost } from './api'
 import './App.css'
 
 function formatDate(iso) {
@@ -16,11 +16,12 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
   const [description, setDescription] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   async function loadPosts() {
     setLoading(true)
@@ -38,22 +39,40 @@ function App() {
     loadPosts()
   }, [])
 
-  async function handleCreate(e) {
+  function resetForm() {
+    setEditingId(null)
+    setTitle('')
+    setAuthor('')
+    setDescription('')
+    setSaveError(null)
+  }
+
+  function handleEditClick(post) {
+    setEditingId(post.id)
+    setTitle(post.title)
+    setAuthor(post.author)
+    setDescription(post.description)
+    setSaveError(null)
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!title || !author || !description) return
 
-    setCreating(true)
-    setCreateError(null)
+    setSaving(true)
+    setSaveError(null)
     try {
-      await createPost({ title, author, description })
-      setTitle('')
-      setAuthor('')
-      setDescription('')
+      if (editingId) {
+        await updatePost(editingId, { title, author, description })
+      } else {
+        await createPost({ title, author, description })
+      }
+      resetForm()
       await loadPosts()
     } catch (err) {
-      setCreateError(err.message)
+      setSaveError(err.message)
     } finally {
-      setCreating(false)
+      setSaving(false)
     }
   }
 
@@ -61,6 +80,7 @@ function App() {
     if (!confirm(`Delete "${post.title}"? This cannot be undone.`)) return
     try {
       await deletePost(post.id)
+      if (editingId === post.id) resetForm()
       await loadPosts()
     } catch (err) {
       alert(err.message)
@@ -72,8 +92,8 @@ function App() {
       <h1>BookLibrary Admin</h1>
 
       <section className="panel">
-        <h2>New post</h2>
-        <form className="upload-form" onSubmit={handleCreate}>
+        <h2>{editingId ? 'Edit post' : 'New post'}</h2>
+        <form className="upload-form" onSubmit={handleSubmit}>
           <input
             type="text"
             placeholder="Title"
@@ -95,11 +115,18 @@ function App() {
             onChange={(e) => setDescription(e.target.value)}
             required
           />
-          <button type="submit" disabled={creating}>
-            {creating ? 'Posting…' : 'Post'}
-          </button>
+          <div className="form-actions">
+            <button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : editingId ? 'Update' : 'Post'}
+            </button>
+            {editingId && (
+              <button type="button" className="secondary" onClick={resetForm} disabled={saving}>
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
-        {createError && <p className="error">{createError}</p>}
+        {saveError && <p className="error">{saveError}</p>}
       </section>
 
       <section className="panel">
@@ -125,7 +152,10 @@ function App() {
                   <td>{post.author}</td>
                   <td>{truncate(post.description)}</td>
                   <td>{formatDate(post.created_at)}</td>
-                  <td>
+                  <td className="row-actions">
+                    <button className="secondary" onClick={() => handleEditClick(post)}>
+                      Edit
+                    </button>
                     <button className="danger" onClick={() => handleDelete(post)}>
                       Delete
                     </button>
