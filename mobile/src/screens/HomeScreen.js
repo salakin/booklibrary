@@ -1,14 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { fetchPosts } from '../api';
+import ScreenBackground from '../components/ScreenBackground';
+import Button from '../components/Button';
+import { colors, radii } from '../theme';
+
+const SEARCH_DEBOUNCE_MS = 400;
 
 function Avatar({ title }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
@@ -24,82 +30,184 @@ function truncate(text, max = 100) {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen({ navigation, route }) {
+  const { bookId } = route.params;
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const hasMounted = useRef(false);
 
-  const load = useCallback(async () => {
+  // Debounce the raw input so we don't fire a request on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const load = useCallback(async (query) => {
     setError(null);
     try {
-      setPosts(await fetchPosts());
+      const results = await fetchPosts(bookId, query || undefined);
+      // Client-side safety net: filters again by the same term so search
+      // still works even if the API being hit hasn't picked up server-side
+      // filtering yet (e.g. an older deployment). No-op once the backend
+      // already filters, since it's the same predicate applied twice.
+      const term = query?.toLowerCase();
+      const filtered = term
+        ? results.filter(
+            (post) =>
+              post.title?.toLowerCase().includes(term) ||
+              post.description?.toLowerCase().includes(term)
+          )
+        : results;
+      setPosts(filtered);
     } catch (err) {
       setError(err.message || 'Something went wrong');
     }
-  }, []);
+  }, [bookId]);
 
   useEffect(() => {
     setLoading(true);
-    load().finally(() => setLoading(false));
-  }, [load]);
+    load(debouncedQuery).finally(() => {
+      setLoading(false);
+      hasMounted.current = true;
+    });
+    // Only the very first run should show the full-screen loader; later
+    // reruns (triggered by debouncedQuery changes) use `searching` instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Skip the initial mount (already handled by the effect above).
+    if (!hasMounted.current) return;
+    setSearching(true);
+    load(debouncedQuery).finally(() => setSearching(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery]);
 
   async function onRefresh() {
     setRefreshing(true);
-    await load();
+    await load(debouncedQuery);
     setRefreshing(false);
   }
 
+  const isSearchActive = debouncedQuery.length > 0;
+
+  const searchBar = (
+    <View style={styles.searchWrap}>
+      <Text style={styles.searchIcon}>🔍</Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by title..."
+        placeholderTextColor={colors.textMuted}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+        clearButtonMode="while-editing"
+      />
+      {searching && <ActivityIndicator size="small" color={colors.accent} />}
+      {!searching && searchQuery.length > 0 && (
+        <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.clearIcon}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
+      <ScreenBackground style={styles.center}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </ScreenBackground>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Couldn't load posts.</Text>
-        <Text style={styles.errorDetail}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); load().finally(() => setLoading(false)); }}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenBackground style={styles.container}>
+        {searchBar}
+        <View style={styles.center}>
+          <Text style={styles.errorText}>Couldn't load posts.</Text>
+          <Text style={styles.errorDetail}>{error}</Text>
+          <Button onPress={() => { setLoading(true); load(debouncedQuery).finally(() => setLoading(false)); }}>
+            Retry
+          </Button>
+        </View>
+      </ScreenBackground>
     );
   }
 
   return (
-    <FlatList
-      contentContainerStyle={posts.length === 0 ? styles.emptyContainer : styles.list}
-      data={posts}
-      keyExtractor={(item) => String(item.id)}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      ListEmptyComponent={
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>No posts yet.</Text>
-          <Text style={styles.emptyDetail}>Create one from the admin panel to see it here.</Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate('PostDetail', { post: item })}
-        >
-          <Avatar title={item.title} />
-          <View style={styles.rowText}>
-            <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-            <Text style={styles.author} numberOfLines={1}>{item.author}</Text>
-            <Text style={styles.preview} numberOfLines={2}>{truncate(item.description)}</Text>
+    <ScreenBackground style={styles.container}>
+      {searchBar}
+      <FlatList
+        contentContainerStyle={posts.length === 0 ? styles.emptyContainer : styles.list}
+        data={posts}
+        keyExtractor={(item) => String(item.id)}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.center}>
+            {isSearchActive ? (
+              <>
+                <Text style={styles.emptyText}>No books found for "{debouncedQuery}".</Text>
+                <Text style={styles.emptyDetail}>Try a different title or keyword.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyText}>No posts yet.</Text>
+                <Text style={styles.emptyDetail}>Create one from the admin panel to see it here.</Text>
+              </>
+            )}
           </View>
-        </TouchableOpacity>
-      )}
-    />
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate('PostDetail', { post: item })}
+          >
+            <Avatar title={item.title} />
+            <View style={styles.rowText}>
+              <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+              <Text style={styles.preview} numberOfLines={2}>{truncate(item.description)}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      />
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    marginHorizontal: 12,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.md,
+  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: colors.textPrimary, paddingVertical: 2 },
+  clearIcon: { fontSize: 16, color: colors.textMuted, paddingHorizontal: 4 },
   list: { padding: 12 },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -107,32 +215,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 12,
     marginBottom: 10,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    elevation: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radii.md,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    backgroundColor: colors.accent,
   },
-  avatarText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  avatarText: { color: colors.white, fontSize: 18, fontWeight: '600' },
   rowText: { flex: 1 },
-  title: { fontSize: 16, fontWeight: '600', color: '#111' },
-  author: { fontSize: 13, color: '#666', marginTop: 2 },
-  preview: { fontSize: 13, color: '#888', marginTop: 4 },
-  errorText: { fontSize: 16, fontWeight: '600', color: '#dc2626', marginBottom: 6 },
-  errorDetail: { fontSize: 13, color: '#666', textAlign: 'center', marginBottom: 16 },
-  retryButton: { backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 6 },
-  retryText: { color: '#fff', fontWeight: '600' },
-  emptyText: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
-  emptyDetail: { fontSize: 13, color: '#777' },
+  title: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+  preview: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  errorText: { fontSize: 16, fontWeight: '600', color: colors.danger, marginBottom: 6 },
+  errorDetail: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
+  emptyText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary, marginBottom: 4 },
+  emptyDetail: { fontSize: 13, color: colors.textSecondary },
 });
