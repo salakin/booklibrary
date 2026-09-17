@@ -9,19 +9,35 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { fetchPosts } from '../api';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
-import { colors, radii } from '../theme';
+import { colors, fonts, radii } from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 400;
 
-function Avatar({ title }) {
+// Cycle through distinct gradient pairs so consecutive posts don't all
+// share the same avatar color.
+const AVATAR_PALETTE = [
+  [colors.purple, colors.magenta],
+  [colors.cyan, colors.purple],
+  [colors.magenta, colors.cyan],
+  [colors.purple, colors.cyan],
+];
+
+function Avatar({ title, index }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
+  const [colorsFrom, colorsTo] = AVATAR_PALETTE[index % AVATAR_PALETTE.length];
   return (
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{initial}</Text>
-    </View>
+    <LinearGradient
+      colors={[colorsFrom, colorsTo]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.avatar, styles.avatarCircle]}
+    >
+      <Text style={styles.avatarLabel}>{initial}</Text>
+    </LinearGradient>
   );
 }
 
@@ -174,12 +190,12 @@ export default function HomeScreen({ navigation, route }) {
             )}
           </View>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <TouchableOpacity
             style={styles.row}
             onPress={() => navigation.navigate('PostDetail', { post: item })}
           >
-            <Avatar title={item.title} />
+            <Avatar title={item.title} index={index} />
             <View style={styles.rowText}>
               <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
               <Text style={styles.preview} numberOfLines={2}>{truncate(item.description)}</Text>
@@ -206,7 +222,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: colors.textPrimary, paddingVertical: 2 },
+  searchInput: { flex: 1, fontSize: 16, fontFamily: fonts.bodyMedium, color: colors.textPrimary, paddingVertical: 2 },
   clearIcon: { fontSize: 16, color: colors.textMuted, paddingHorizontal: 4 },
   list: { padding: 12 },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
@@ -219,27 +235,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
     borderRadius: radii.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    shadowColor: colors.shadowPurple,
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   avatar: {
     width: 44,
     height: 44,
+    marginRight: 14,
+  },
+  avatarCircle: {
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
-    backgroundColor: colors.accent,
   },
-  avatarText: { color: colors.white, fontSize: 18, fontWeight: '600' },
+  avatarLabel: {
+    color: colors.white,
+    fontFamily: fonts.heading,
+    fontSize: 18,
+  },
   rowText: { flex: 1 },
-  title: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  preview: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
-  errorText: { fontSize: 16, fontWeight: '600', color: colors.danger, marginBottom: 6 },
-  errorDetail: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary, marginBottom: 4 },
-  emptyDetail: { fontSize: 13, color: colors.textSecondary },
+  title: { fontSize: 16, fontFamily: fonts.body, color: colors.textPrimary },
+  preview: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textMuted, marginTop: 4 },
+  errorText: { fontSize: 16, fontFamily: fonts.body, color: colors.danger, marginBottom: 6 },
+  errorDetail: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
+  emptyText: { fontSize: 16, fontFamily: fonts.body, color: colors.textPrimary, marginBottom: 4 },
+  emptyDetail: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary },
 });

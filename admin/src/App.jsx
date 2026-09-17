@@ -346,7 +346,7 @@ function App() {
                 <thead>
                   <tr>
                     <th>Title</th>
-                    <th>Description</th>
+                    <th className="col-description">Description</th>
                     <th>Created</th>
                     <th></th>
                   </tr>
@@ -355,7 +355,7 @@ function App() {
                   {posts.map((post) => (
                     <tr key={post.id}>
                       <td>{post.title}</td>
-                      <td>{truncate(post.description)}</td>
+                      <td className="col-description">{truncate(post.description)}</td>
                       <td>{formatDate(post.created_at)}</td>
                       <td className="row-actions">
                         <button className="secondary" onClick={() => handleEditClick(post)}>

@@ -18,6 +18,9 @@
     },
     "web": {
       "favicon": "./assets/lawlogo-icon.png"
-    }
+    },
+    "plugins": [
+      "expo-splash-screen"
+    ]
   }
 }

@@ -11,14 +11,23 @@ import {
 import { fetchBooks } from '../api';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
-import { colors, radii } from '../theme';
+import HexAvatar from '../components/HexAvatar';
+import { colors, fonts, radii } from '../theme';
 
-function Avatar({ title }) {
+// Cycle through distinct gradient pairs so consecutive books don't all
+// share the same hexagon color.
+const AVATAR_PALETTE = [
+  [colors.purple, colors.magenta],
+  [colors.cyan, colors.purple],
+  [colors.magenta, colors.cyan],
+  [colors.purple, colors.cyan],
+];
+
+function Avatar({ title, index }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
+  const [colorsFrom, colorsTo] = AVATAR_PALETTE[index % AVATAR_PALETTE.length];
   return (
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{initial}</Text>
-    </View>
+    <HexAvatar size={44} label={initial} colorsFrom={colorsFrom} colorsTo={colorsTo} style={styles.avatar} />
   );
 }
 
@@ -90,12 +99,12 @@ export default function BookListScreen({ navigation }) {
             <Text style={styles.emptyDetail}>Create one from the admin panel to see it here.</Text>
           </View>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <TouchableOpacity
             style={styles.row}
             onPress={() => navigation.navigate('Home', { bookId: item.id, bookTitle: item.title })}
           >
-            <Avatar title={item.title} />
+            <Avatar title={item.title} index={index} />
             <View style={styles.rowText}>
               <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
               {!!item.author && (
@@ -122,27 +131,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
     borderRadius: radii.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    shadowColor: colors.shadowPurple,
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: 14,
-    backgroundColor: colors.accent,
   },
-  avatarText: { color: colors.white, fontSize: 18, fontWeight: '600' },
   rowText: { flex: 1 },
-  title: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  author: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  errorText: { fontSize: 16, fontWeight: '600', color: colors.danger, marginBottom: 6 },
-  errorDetail: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary, marginBottom: 4 },
-  emptyDetail: { fontSize: 13, color: colors.textSecondary },
+  title: { fontSize: 16, fontFamily: fonts.body, color: colors.textPrimary },
+  author: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary, marginTop: 2 },
+  errorText: { fontSize: 16, fontFamily: fonts.body, color: colors.danger, marginBottom: 6 },
+  errorDetail: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
+  emptyText: { fontSize: 16, fontFamily: fonts.body, color: colors.textPrimary, marginBottom: 4 },
+  emptyDetail: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary },
 });

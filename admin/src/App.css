@@ -84,6 +84,7 @@ h1 {
 
 table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 
@@ -92,11 +93,18 @@ td {
   text-align: left;
   padding: 0.6rem 0.5rem;
   border-bottom: 1px solid #eee;
+  overflow-wrap: break-word;
+}
+
+.col-description {
+  width: 45%;
 }
 
 .row-actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  white-space: nowrap;
 }
 
 button.danger {

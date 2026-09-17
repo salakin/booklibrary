@@ -1,24 +1,47 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { colors, radii } from '../theme';
+import { colors, fonts, radii } from '../theme';
 
-// Shared solid accent-colored button used anywhere the app needs a primary
-// call-to-action (Welcome screen CTA, error retry, etc).
+// Shared primary call-to-action button (Welcome screen CTA, error retry,
+// etc). Neon Arcade - Light theme: magenta->purple gradient fill, white
+// bold uppercase text, soft magenta-tinted shadow.
 export default function Button({ onPress, children, style, textStyle }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.button, style]}>
-      <Text style={[styles.text, textStyle]}>{children}</Text>
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.shadowWrap, style]}>
+      <LinearGradient
+        colors={colors.gradientPrimary}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.button}
+      >
+        <Text style={[styles.text, textStyle]}>{children}</Text>
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  shadowWrap: {
+    borderRadius: radii.sm,
+    shadowColor: colors.shadowMagenta,
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
   button: {
-    backgroundColor: colors.accent,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 32,
-    borderRadius: radii.lg,
+    borderRadius: radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  text: { color: colors.white, fontSize: 16, fontWeight: '600' },
+  text: {
+    color: colors.white,
+    fontSize: 16,
+    fontFamily: fonts.body,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
 });
