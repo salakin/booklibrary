@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict
 class BookBase(BaseModel):
     title: str
     author: str | None = None
-    description: str | None = None
 
 
 class BookCreate(BookBase):

@@ -101,9 +101,6 @@ export default function BookListScreen({ navigation }) {
               {!!item.author && (
                 <Text style={styles.author} numberOfLines={1}>{item.author}</Text>
               )}
-              {!!item.description && (
-                <Text style={styles.preview} numberOfLines={2}>{item.description}</Text>
-              )}
             </View>
           </TouchableOpacity>
         )}
@@ -144,7 +141,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   title: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
   author: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  preview: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   errorText: { fontSize: 16, fontWeight: '600', color: colors.danger, marginBottom: 6 },
   errorDetail: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
   emptyText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary, marginBottom: 4 },

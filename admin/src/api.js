@@ -6,11 +6,11 @@ export async function fetchBooks() {
   return res.json()
 }
 
-export async function createBook({ title, author, description }) {
+export async function createBook({ title, author }) {
   const res = await fetch(`${API_BASE_URL}/api/books`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, author, description }),
+    body: JSON.stringify({ title, author }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -19,11 +19,11 @@ export async function createBook({ title, author, description }) {
   return res.json()
 }
 
-export async function updateBook(id, { title, author, description }) {
+export async function updateBook(id, { title, author }) {
   const res = await fetch(`${API_BASE_URL}/api/books/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, author, description }),
+    body: JSON.stringify({ title, author }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

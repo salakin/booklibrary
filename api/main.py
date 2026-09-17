@@ -51,10 +51,7 @@ def _migrate_existing_posts_to_books():
             db.query(models.Book).filter(models.Book.title == DEFAULT_BOOK_TITLE).first()
         )
         if default_book is None:
-            default_book = models.Book(
-                title=DEFAULT_BOOK_TITLE,
-                description="Posts created before books existed in this app.",
-            )
+            default_book = models.Book(title=DEFAULT_BOOK_TITLE)
             db.add(default_book)
             db.commit()
             db.refresh(default_book)
@@ -89,8 +86,33 @@ def _drop_legacy_post_author_column():
         print(f"Warning: could not drop legacy posts.author column ({exc}).")
 
 
+def _drop_legacy_book_description_column():
+    """`description` was removed from Book entirely (product decision, not
+    worth preserving old values) — drop the now-unused column from any
+    already-deployed `books` table (a fresh DB never had it, since the
+    current model doesn't declare it). Mirrors
+    `_drop_legacy_post_author_column` above. Best-effort: on a SQLite
+    version too old to support `DROP COLUMN` (pre-3.35, uncommon), this is
+    skipped with a warning rather than crashing startup.
+    """
+    inspector = inspect(engine)
+    if "books" not in inspector.get_table_names():
+        return
+
+    columns = {col["name"] for col in inspector.get_columns("books")}
+    if "description" not in columns:
+        return
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE books DROP COLUMN description"))
+    except Exception as exc:  # pragma: no cover - depends on DB/driver version
+        print(f"Warning: could not drop legacy books.description column ({exc}).")
+
+
 _migrate_existing_posts_to_books()
 _drop_legacy_post_author_column()
+_drop_legacy_book_description_column()
 
 app = FastAPI(title="BookLibrary API")
 

@@ -45,7 +45,6 @@ function App() {
   const [editingBookId, setEditingBookId] = useState(null)
   const [bookFormTitle, setBookFormTitle] = useState('')
   const [bookFormAuthor, setBookFormAuthor] = useState('')
-  const [bookFormDescription, setBookFormDescription] = useState('')
   const [savingBook, setSavingBook] = useState(false)
   const [bookSaveError, setBookSaveError] = useState(null)
 
@@ -147,7 +146,6 @@ function App() {
     setEditingBookId(null)
     setBookFormTitle('')
     setBookFormAuthor('')
-    setBookFormDescription('')
     setBookSaveError(null)
   }
 
@@ -155,7 +153,6 @@ function App() {
     setEditingBookId(book.id)
     setBookFormTitle(book.title)
     setBookFormAuthor(book.author || '')
-    setBookFormDescription(book.description || '')
     setBookSaveError(null)
   }
 
@@ -169,7 +166,6 @@ function App() {
       const payload = {
         title: bookFormTitle,
         author: bookFormAuthor || null,
-        description: bookFormDescription || null,
       }
       if (editingBookId) {
         await updateBook(editingBookId, payload)
@@ -232,12 +228,6 @@ function App() {
                 value={bookFormAuthor}
                 onChange={(e) => setBookFormAuthor(e.target.value)}
               />
-              <textarea
-                placeholder="Description (optional)"
-                rows={4}
-                value={bookFormDescription}
-                onChange={(e) => setBookFormDescription(e.target.value)}
-              />
               <div className="form-actions">
                 <button type="submit" disabled={savingBook}>
                   {savingBook ? 'Saving…' : editingBookId ? 'Update' : 'Add book'}
@@ -268,7 +258,6 @@ function App() {
                   <tr>
                     <th>Title</th>
                     <th>Author</th>
-                    <th>Description</th>
                     <th>Posts</th>
                     <th></th>
                   </tr>
@@ -286,7 +275,6 @@ function App() {
                         </button>
                       </td>
                       <td>{book.author || '—'}</td>
-                      <td>{book.description ? truncate(book.description) : '—'}</td>
                       <td>{postCountFor(book.id)}</td>
                       <td className="row-actions">
                         <button className="secondary" onClick={() => handleBookEditClick(book)}>
