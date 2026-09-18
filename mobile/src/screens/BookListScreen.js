@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,10 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { fetchBooks } from '../api';
+import { getCachedBooks, setCachedBooks } from '../cache';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
 import HexAvatar from '../components/HexAvatar';
+import OfflineBanner from '../components/OfflineBanner';
 import { colors, fonts, radii } from '../theme';
 
 // Cycle through distinct gradient pairs so consecutive books don't all
@@ -36,19 +39,64 @@ export default function BookListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [isOffline, setIsOffline] = useState(false);
+  // Mirrors `books` synchronously so the NetInfo/reconnect listener and the
+  // background-refresh failure handler can tell "do we have anything to show
+  // already" without depending on stale closures.
+  const booksRef = useRef([]);
 
+  // Cache-first + background-refresh: attempt a live fetch, and on success
+  // update both the screen and the cache. On failure, keep showing whatever
+  // is already on screen (cached or previously fetched) and flip on the
+  // offline indicator instead of the hard error screen — unless there's
+  // nothing at all to show, in which case fall back to the error state.
   const load = useCallback(async () => {
-    setError(null);
     try {
-      setBooks(await fetchBooks());
+      const fresh = await fetchBooks();
+      booksRef.current = fresh;
+      setBooks(fresh);
+      setError(null);
+      setIsOffline(false);
+      setCachedBooks(fresh);
     } catch (err) {
-      setError(err.message || 'Something went wrong');
+      setIsOffline(true);
+      if (booksRef.current.length === 0) {
+        setError(err.message || 'Something went wrong');
+      }
     }
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    load().finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      const cached = await getCachedBooks();
+      if (cancelled) return;
+      if (cached && cached.length > 0) {
+        booksRef.current = cached;
+        setBooks(cached);
+        setLoading(false);
+      }
+      await load();
+      if (!cancelled) setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
+  // Auto-refresh the moment connectivity comes back, no user action needed.
+  useEffect(() => {
+    let wasOffline = false;
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const isConnected = state.isConnected === true && state.isInternetReachable !== false;
+      if (!isConnected) {
+        wasOffline = true;
+      } else if (wasOffline) {
+        wasOffline = false;
+        load();
+      }
+    });
+    return () => unsubscribe();
   }, [load]);
 
   async function onRefresh() {
@@ -81,6 +129,7 @@ export default function BookListScreen({ navigation }) {
 
   return (
     <ScreenBackground style={styles.container}>
+      {isOffline && <OfflineBanner />}
       <FlatList
         contentContainerStyle={books.length === 0 ? styles.emptyContainer : styles.list}
         data={books}

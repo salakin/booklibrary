@@ -10,9 +10,12 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import NetInfo from '@react-native-community/netinfo';
 import { fetchPosts } from '../api';
+import { getCachedPosts, setCachedPosts } from '../cache';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
+import OfflineBanner from '../components/OfflineBanner';
 import { colors, fonts, radii } from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -46,16 +49,48 @@ function truncate(text, max = 100) {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+// Same substring predicate used both as the online safety-net filter (in
+// case the API hasn't picked up server-side search yet) and as the entire
+// search implementation while offline, applied to the last-known-good full
+// post list instead of a live server response.
+function filterPosts(list, term) {
+  if (!term) return list;
+  const lower = term.toLowerCase();
+  return list.filter(
+    (post) =>
+      post.title?.toLowerCase().includes(lower) ||
+      post.description?.toLowerCase().includes(lower)
+  );
+}
+
 export default function HomeScreen({ navigation, route }) {
   const { bookId } = route.params;
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [isOffline, setIsOffline] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const hasMounted = useRef(false);
+  // The full, unfiltered post list for this book — the offline search
+  // source of truth. Kept in a ref since it's an implementation detail of
+  // `load`/offline filtering, not something that needs to drive renders on
+  // its own (`posts`, what's actually rendered, is derived from it).
+  const fullPostsRef = useRef([]);
+  const debouncedQueryRef = useRef('');
+  const isConnectedRef = useRef(true);
+
+  useEffect(() => {
+    debouncedQueryRef.current = debouncedQuery;
+  }, [debouncedQuery]);
+
+  useEffect(() => {
+    NetInfo.fetch().then((state) => {
+      isConnectedRef.current = state.isConnected === true && state.isInternetReachable !== false;
+    });
+  }, []);
 
   // Debounce the raw input so we don't fire a request on every keystroke.
   useEffect(() => {
@@ -65,38 +100,69 @@ export default function HomeScreen({ navigation, route }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Cache-first + background-refresh, offline-search-aware. `query` is the
+  // (optional) search term. Only a query-less call caches the result, since
+  // the offline fallback always filters against the *full* post list, never
+  // a stale search-scoped subset.
   const load = useCallback(async (query) => {
-    setError(null);
+    const term = query || '';
+
+    if (!isConnectedRef.current) {
+      // Known offline: skip the network call entirely and filter whatever
+      // full list we already have (cache or previous live fetch).
+      setIsOffline(true);
+      setPosts(filterPosts(fullPostsRef.current, term));
+      setError(fullPostsRef.current.length === 0 ? 'No internet connection and no saved data yet.' : null);
+      return;
+    }
+
     try {
-      const results = await fetchPosts(bookId, query || undefined);
-      // Client-side safety net: filters again by the same term so search
-      // still works even if the API being hit hasn't picked up server-side
-      // filtering yet (e.g. an older deployment). No-op once the backend
-      // already filters, since it's the same predicate applied twice.
-      const term = query?.toLowerCase();
-      const filtered = term
-        ? results.filter(
-            (post) =>
-              post.title?.toLowerCase().includes(term) ||
-              post.description?.toLowerCase().includes(term)
-          )
-        : results;
+      const results = await fetchPosts(bookId, term || undefined);
+      const filtered = filterPosts(results, term);
       setPosts(filtered);
+      setError(null);
+      setIsOffline(false);
+      if (!term) {
+        fullPostsRef.current = results;
+        setCachedPosts(bookId, results);
+      }
     } catch (err) {
-      setError(err.message || 'Something went wrong');
+      // Live fetch failed (offline, timeout, server error, or a connectivity
+      // transition that raced isConnectedRef) — fall back to the cached full
+      // list instead of a hard error, as long as we have something to show.
+      setIsOffline(true);
+      if (fullPostsRef.current.length > 0) {
+        setPosts(filterPosts(fullPostsRef.current, term));
+        setError(null);
+      } else {
+        setError(err.message || 'Something went wrong');
+      }
     }
   }, [bookId]);
 
   useEffect(() => {
-    setLoading(true);
-    load(debouncedQuery).finally(() => {
-      setLoading(false);
-      hasMounted.current = true;
-    });
+    let cancelled = false;
+    (async () => {
+      const cached = await getCachedPosts(bookId);
+      if (cancelled) return;
+      if (cached && cached.length > 0) {
+        fullPostsRef.current = cached;
+        setPosts(cached);
+        setLoading(false);
+      }
+      await load(debouncedQuery);
+      if (!cancelled) {
+        setLoading(false);
+        hasMounted.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // Only the very first run should show the full-screen loader; later
     // reruns (triggered by debouncedQuery changes) use `searching` instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bookId]);
 
   useEffect(() => {
     // Skip the initial mount (already handled by the effect above).
@@ -105,6 +171,22 @@ export default function HomeScreen({ navigation, route }) {
     load(debouncedQuery).finally(() => setSearching(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
+
+  // Auto-refresh the moment connectivity comes back, no user action needed.
+  useEffect(() => {
+    let wasOffline = false;
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const connected = state.isConnected === true && state.isInternetReachable !== false;
+      isConnectedRef.current = connected;
+      if (!connected) {
+        wasOffline = true;
+      } else if (wasOffline) {
+        wasOffline = false;
+        load(debouncedQueryRef.current);
+      }
+    });
+    return () => unsubscribe();
+  }, [load]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -163,6 +245,7 @@ export default function HomeScreen({ navigation, route }) {
   return (
     <ScreenBackground style={styles.container}>
       {searchBar}
+      {isOffline && <OfflineBanner />}
       <FlatList
         contentContainerStyle={posts.length === 0 ? styles.emptyContainer : styles.list}
         data={posts}
