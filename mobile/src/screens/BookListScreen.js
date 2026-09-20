@@ -38,31 +38,90 @@ export default function BookListScreen({ navigation }) {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(null);
   const [isOffline, setIsOffline] = useState(false);
-  // Mirrors `books` synchronously so the NetInfo/reconnect listener and the
-  // background-refresh failure handler can tell "do we have anything to show
-  // already" without depending on stale closures.
+  // Mirrors `books` synchronously so the NetInfo/reconnect listener, the
+  // background-refresh failure handler and the `onEndReached` guards can all
+  // read the current list without depending on stale closures.
   const booksRef = useRef([]);
+  // How many rows the server has actually handed us, tracked separately from
+  // `books.length` so the next page's offset stays right even if the
+  // rendered list and the fetched list ever diverge.
+  const offsetRef = useRef(0);
+  // Ref rather than the `loadingMore`/`hasMore` state for the same reason:
+  // FlatList can fire `onEndReached` again before React has re-rendered with
+  // the updated state, which is exactly how duplicate page requests happen.
+  const loadingMoreRef = useRef(false);
+  const hasMoreRef = useRef(false);
 
-  // Cache-first + background-refresh: attempt a live fetch, and on success
-  // update both the screen and the cache. On failure, keep showing whatever
-  // is already on screen (cached or previously fetched) and flip on the
-  // offline indicator instead of the hard error screen — unless there's
-  // nothing at all to show, in which case fall back to the error state.
+  // Cache-first + background-refresh: attempt a live fetch of the *first
+  // page*, and on success update the screen and the cache. On failure, keep
+  // showing whatever is already on screen (cached or previously fetched) and
+  // flip on the offline indicator instead of the hard error screen — unless
+  // there's nothing at all to show, in which case fall back to the error
+  // state. Always restarts paging from the top, so it can never append a
+  // second copy of page one on top of the cached one.
   const load = useCallback(async () => {
     try {
-      const fresh = await fetchBooks();
-      booksRef.current = fresh;
-      setBooks(fresh);
+      const page = await fetchBooks({ offset: 0 });
+      booksRef.current = page.items;
+      offsetRef.current = page.items.length;
+      hasMoreRef.current = page.has_more;
+      setBooks(page.items);
+      setHasMore(page.has_more);
       setError(null);
       setIsOffline(false);
-      setCachedBooks(fresh);
+      // Only page one is cached — it's what the user sees on open, and
+      // persisting a half-scrolled list would write back an arbitrary subset
+      // that then looks like the complete list when read offline.
+      setCachedBooks(page.items);
     } catch (err) {
       setIsOffline(true);
+      // Further pages are online-only, so stop offering them; `load` runs
+      // again on reconnect or pull-to-refresh and restores paging from page
+      // one.
+      hasMoreRef.current = false;
+      setHasMore(false);
       if (booksRef.current.length === 0) {
         setError(err.message || 'Something went wrong');
       }
+    }
+  }, []);
+
+  // Next page for infinite scroll. Every `onEndReached` guard lives here:
+  // never while a page is already in flight, never once the server has said
+  // there's nothing left, and never on an empty list (FlatList fires
+  // `onEndReached` once for an empty list too, which would otherwise
+  // re-request page one on every empty render).
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current || booksRef.current.length === 0) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await fetchBooks({ offset: offsetRef.current });
+      offsetRef.current += page.items.length;
+      hasMoreRef.current = page.has_more;
+      // De-dupe by id: offset paging can re-serve a row if a book was added
+      // or renamed (this list is title-ordered) between the two requests.
+      const seen = new Set(booksRef.current.map((book) => book.id));
+      const merged = [...booksRef.current, ...page.items.filter((book) => !seen.has(book.id))];
+      booksRef.current = merged;
+      setBooks(merged);
+      setHasMore(page.has_more);
+      setIsOffline(false);
+    } catch {
+      // A failed *next* page never escalates to the error screen — the user
+      // keeps the list they already have. Flag offline and stop paging until
+      // a refresh or reconnect.
+      setIsOffline(true);
+      hasMoreRef.current = false;
+      setHasMore(false);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   }, []);
 
@@ -142,6 +201,15 @@ export default function BookListScreen({ navigation }) {
             colors={[colors.accent]}
           />
         }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footer}>
+              <ActivityIndicator size="small" color={colors.accent} />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.center}>
             <Text style={styles.emptyText}>No books yet.</Text>
@@ -171,6 +239,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: 12 },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
+  footer: { paddingVertical: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   row: {
     flexDirection: 'row',

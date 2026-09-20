@@ -68,19 +68,40 @@ export default function HomeScreen({ navigation, route }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(null);
   const [isOffline, setIsOffline] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const hasMounted = useRef(false);
-  // The full, unfiltered post list for this book — the offline search
-  // source of truth. Kept in a ref since it's an implementation detail of
-  // `load`/offline filtering, not something that needs to drive renders on
-  // its own (`posts`, what's actually rendered, is derived from it).
-  const fullPostsRef = useRef([]);
+  // Every unfiltered post pulled for this book so far (the cached first page
+  // on open, plus any further pages scrolled into view) — the offline search
+  // source of truth. Only ever holds search-less results, so offline
+  // filtering never runs against a stale search-scoped subset.
+  const loadedPostsRef = useRef([]);
+  // Mirrors the rendered `posts` synchronously, so the `onEndReached` guards
+  // and the append path read the current list instead of a stale closure.
+  const postsRef = useRef([]);
+  // Rows received from the server so far for the *current* query. Counted
+  // separately from `posts.length` because `filterPosts` below can drop rows
+  // from a page; deriving the next offset from the visible list would then
+  // silently re-request the rows it dropped.
+  const offsetRef = useRef(0);
+  // Refs (not the `loadingMore`/`hasMore` state) because FlatList can fire
+  // `onEndReached` again before React has re-rendered with the new state —
+  // which is exactly how overlapping page requests happen.
+  const loadingMoreRef = useRef(false);
+  const hasMoreRef = useRef(false);
   const debouncedQueryRef = useRef('');
   const isConnectedRef = useRef(true);
+
+  // Keeps the rendered list and its synchronous mirror in lockstep.
+  function applyPosts(next) {
+    postsRef.current = next;
+    setPosts(next);
+  }
 
   useEffect(() => {
     debouncedQueryRef.current = debouncedQuery;
@@ -100,43 +121,99 @@ export default function HomeScreen({ navigation, route }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Cache-first + background-refresh, offline-search-aware. `query` is the
-  // (optional) search term. Only a query-less call caches the result, since
-  // the offline fallback always filters against the *full* post list, never
-  // a stale search-scoped subset.
+  // Loads the *first page* for `query` (the optional search term) — used on
+  // mount, on every search change, on pull-to-refresh and on reconnect. It
+  // always replaces the list and resets paging to the top, so it can never
+  // append a second copy of page one on top of the cached one. Only a
+  // query-less call touches the cache, and only with its first page.
   const load = useCallback(async (query) => {
     const term = query || '';
+    offsetRef.current = 0;
 
     if (!isConnectedRef.current) {
-      // Known offline: skip the network call entirely and filter whatever
-      // full list we already have (cache or previous live fetch).
+      // Known offline: skip the network call entirely, filter whatever we
+      // have locally (cache, or pages fetched earlier this session), and
+      // don't offer further pages — there is nothing to page into offline.
       setIsOffline(true);
-      setPosts(filterPosts(fullPostsRef.current, term));
-      setError(fullPostsRef.current.length === 0 ? 'No internet connection and no saved data yet.' : null);
+      hasMoreRef.current = false;
+      setHasMore(false);
+      applyPosts(filterPosts(loadedPostsRef.current, term));
+      setError(loadedPostsRef.current.length === 0 ? 'No internet connection and no saved data yet.' : null);
       return;
     }
 
     try {
-      const results = await fetchPosts(bookId, term || undefined);
-      const filtered = filterPosts(results, term);
-      setPosts(filtered);
+      const page = await fetchPosts(bookId, term || undefined, { offset: 0 });
+      offsetRef.current = page.items.length;
+      hasMoreRef.current = page.has_more;
+      setHasMore(page.has_more);
+      applyPosts(filterPosts(page.items, term));
       setError(null);
       setIsOffline(false);
       if (!term) {
-        fullPostsRef.current = results;
-        setCachedPosts(bookId, results);
+        loadedPostsRef.current = page.items;
+        setCachedPosts(bookId, page.items);
       }
     } catch (err) {
       // Live fetch failed (offline, timeout, server error, or a connectivity
-      // transition that raced isConnectedRef) — fall back to the cached full
-      // list instead of a hard error, as long as we have something to show.
+      // transition that raced isConnectedRef) — fall back to what we have
+      // locally instead of a hard error, as long as there is something to
+      // show, and stop paging until the next refresh/reconnect.
       setIsOffline(true);
-      if (fullPostsRef.current.length > 0) {
-        setPosts(filterPosts(fullPostsRef.current, term));
+      hasMoreRef.current = false;
+      setHasMore(false);
+      if (loadedPostsRef.current.length > 0) {
+        applyPosts(filterPosts(loadedPostsRef.current, term));
         setError(null);
       } else {
         setError(err.message || 'Something went wrong');
       }
+    }
+  }, [bookId]);
+
+  // Next page for infinite scroll. All the `onEndReached` guards live here:
+  // never while a page is in flight, never once the server said there is
+  // nothing left, never on an empty list (FlatList fires `onEndReached` for
+  // an empty list too), and never while offline — extra pages are
+  // online-only, offline we show exactly what is cached.
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    if (postsRef.current.length === 0 || !isConnectedRef.current) return;
+
+    const term = debouncedQueryRef.current;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await fetchPosts(bookId, term || undefined, { offset: offsetRef.current });
+      offsetRef.current += page.items.length;
+      hasMoreRef.current = page.has_more;
+      setHasMore(page.has_more);
+
+      // De-dupe by id: offset paging can re-serve a row if a post was added
+      // or deleted between the two requests.
+      const seen = new Set(postsRef.current.map((post) => post.id));
+      const incoming = filterPosts(page.items, term).filter((post) => !seen.has(post.id));
+      applyPosts([...postsRef.current, ...incoming]);
+
+      if (!term) {
+        // Grow the offline-search source with the unfiltered page, but
+        // deliberately don't re-write the cache: the cache stays "page one"
+        // so a half-scrolled session never persists a misleading subset.
+        const cachedSeen = new Set(loadedPostsRef.current.map((post) => post.id));
+        loadedPostsRef.current = [
+          ...loadedPostsRef.current,
+          ...page.items.filter((post) => !cachedSeen.has(post.id)),
+        ];
+      }
+    } catch {
+      // A failed *next* page never escalates to the error screen — the user
+      // keeps the list they already have.
+      setIsOffline(true);
+      hasMoreRef.current = false;
+      setHasMore(false);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   }, [bookId]);
 
@@ -146,8 +223,8 @@ export default function HomeScreen({ navigation, route }) {
       const cached = await getCachedPosts(bookId);
       if (cancelled) return;
       if (cached && cached.length > 0) {
-        fullPostsRef.current = cached;
-        setPosts(cached);
+        loadedPostsRef.current = cached;
+        applyPosts(cached);
         setLoading(false);
       }
       await load(debouncedQuery);
@@ -258,6 +335,15 @@ export default function HomeScreen({ navigation, route }) {
             colors={[colors.accent]}
           />
         }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footer}>
+              <ActivityIndicator size="small" color={colors.accent} />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.center}>
             {isSearchActive ? (
@@ -309,6 +395,7 @@ const styles = StyleSheet.create({
   clearIcon: { fontSize: 16, color: colors.textMuted, paddingHorizontal: 4 },
   list: { padding: 12 },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
+  footer: { paddingVertical: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   row: {
     flexDirection: 'row',
