@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -47,11 +47,6 @@ export default function BookListScreen({ navigation }) {
   // Admin-highlighted posts for the top slider. Best-effort: failures
   // leave whatever is already there (cached or empty = slider hidden).
   const [highlights, setHighlights] = useState([]);
-  const bookTitles = useMemo(() => {
-    const map = {};
-    books.forEach((b) => { map[b.id] = b.title; });
-    return map;
-  }, [books]);
 
   const loadHighlights = useCallback(async () => {
     try {
@@ -158,7 +153,6 @@ export default function BookListScreen({ navigation }) {
         ListHeaderComponent={
           <HighlightsSlider
             posts={highlights}
-            bookTitles={bookTitles}
             onPressPost={(post) => navigation.navigate('PostDetail', { post })}
           />
         }

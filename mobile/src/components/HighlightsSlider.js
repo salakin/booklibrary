@@ -1,33 +1,56 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 
-const AUTO_ADVANCE_MS = 4500;
 const H_PADDING = 12; // matches the books list's own horizontal padding
 const ACCENTS = [colors.purple, colors.magenta, colors.cyan];
+// Long descriptions scroll inside the card instead of growing the slider.
+const MAX_TEXT_HEIGHT = 200;
+// After the user swipes or scrolls a card, wait this long before resuming.
+const RESUME_AFTER_MS = 8000;
 
-// Horizontal, paged, auto-advancing strip of highlighted posts. Renders
-// nothing when there are no posts, so callers can pass [] to hide it.
-export default function HighlightsSlider({ posts, bookTitles, onPressPost }) {
+// Each slide stays up long enough to actually read its full description.
+function dwellFor(post) {
+  const length = (post?.description || '').length;
+  return Math.min(15000, Math.max(4500, length * 50));
+}
+
+// Horizontal, paged, auto-advancing strip of highlighted posts showing each
+// post's full description. Renders nothing when there are no posts, so
+// callers can pass [] to hide it.
+export default function HighlightsSlider({ posts, onPressPost }) {
   const { width } = useWindowDimensions();
   const slideWidth = width - H_PADDING * 2;
   const listRef = useRef(null);
   const indexRef = useRef(0);
-  const pausedRef = useRef(false);
+  const timerRef = useRef(null);
+  const interactedRef = useRef(false);
   const [index, setIndex] = useState(0);
   const count = posts.length;
 
-  useEffect(() => {
-    if (count < 2) return undefined;
-    const id = setInterval(() => {
-      if (pausedRef.current) return;
+  const schedule = useCallback((delay) => {
+    clearTimeout(timerRef.current);
+    if (count < 2) return;
+    timerRef.current = setTimeout(() => {
       const next = (indexRef.current + 1) % count;
       indexRef.current = next;
       setIndex(next);
       listRef.current?.scrollToOffset({ offset: next * slideWidth, animated: true });
-    }, AUTO_ADVANCE_MS);
-    return () => clearInterval(id);
+    }, delay);
   }, [count, slideWidth]);
+
+  const pause = useCallback(() => {
+    clearTimeout(timerRef.current);
+  }, []);
+
+  // Reschedule whenever the visible slide changes: a longer wait if the user
+  // just interacted, otherwise the new slide's reading time.
+  useEffect(() => {
+    const delay = interactedRef.current ? RESUME_AFTER_MS : dwellFor(posts[index]);
+    interactedRef.current = false;
+    schedule(delay);
+    return () => clearTimeout(timerRef.current);
+  }, [index, posts, schedule]);
 
   // Keep the position valid if the list shrinks after a refresh.
   useEffect(() => {
@@ -39,16 +62,20 @@ export default function HighlightsSlider({ posts, bookTitles, onPressPost }) {
 
   const onScrollEnd = useCallback((e) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
+    if (i === indexRef.current) {
+      // Swiped back to the same slide: the index effect won't rerun.
+      schedule(RESUME_AFTER_MS);
+      return;
+    }
+    interactedRef.current = true;
     indexRef.current = i;
     setIndex(i);
-    pausedRef.current = false;
-  }, [slideWidth]);
+  }, [slideWidth, schedule]);
 
   if (count === 0) return null;
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.heading}>HIGHLIGHTS</Text>
       <FlatList
         ref={listRef}
         data={posts}
@@ -57,27 +84,28 @@ export default function HighlightsSlider({ posts, bookTitles, onPressPost }) {
         showsHorizontalScrollIndicator={false}
         keyExtractor={(p) => String(p.id)}
         getItemLayout={(_, i) => ({ length: slideWidth, offset: slideWidth * i, index: i })}
-        onScrollBeginDrag={() => { pausedRef.current = true; }}
+        onScrollBeginDrag={pause}
         onMomentumScrollEnd={onScrollEnd}
-        renderItem={({ item, index: i }) => {
-          const book = bookTitles?.[item.book_id];
-          const accent = ACCENTS[i % ACCENTS.length];
-          return (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Highlighted post: ${item.title}${book ? `, from ${book}` : ''}`}
-              style={[styles.slide, { width: slideWidth, borderLeftColor: accent }]}
-              onPress={() => onPressPost(item)}
+        renderItem={({ item, index: i }) => (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Highlighted post: ${item.title}`}
+            style={[styles.slide, { width: slideWidth, borderLeftColor: ACCENTS[i % ACCENTS.length] }]}
+            onPress={() => onPressPost(item)}
+          >
+            <ScrollView
+              style={styles.textScroll}
+              contentContainerStyle={styles.textScrollContent}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+              onScrollBeginDrag={pause}
+              onScrollEndDrag={() => schedule(RESUME_AFTER_MS)}
             >
-              {!!book && <Text style={[styles.book, { color: accent }]} numberOfLines={1}>{book}</Text>}
-              <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-              <Text style={styles.preview} numberOfLines={2}>
-                {(item.description || '').replace(/\s+/g, ' ').trim()}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
+              <Text style={styles.description}>{(item.description || '').trim()}</Text>
+            </ScrollView>
+          </TouchableOpacity>
+        )}
       />
       {count > 1 && (
         <View style={styles.dots}>
@@ -92,20 +120,20 @@ export default function HighlightsSlider({ posts, bookTitles, onPressPost }) {
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 12 },
-  heading: { fontSize: 12, fontFamily: fonts.heading, color: colors.textSecondary, letterSpacing: 1.5, marginBottom: 8 },
   slide: {
-    height: 120,
+    minHeight: 80,
     padding: 14,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
     borderLeftWidth: 5,
     borderRadius: radii.lg,
-    justifyContent: 'center',
   },
-  book: { fontSize: 13, fontFamily: fonts.body, marginBottom: 2 },
-  title: { fontSize: 15, fontFamily: fonts.headingBold, color: colors.textPrimary, marginBottom: 4 },
-  preview: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary },
+  textScroll: { maxHeight: MAX_TEXT_HEIGHT },
+  // Cards stretch to the tallest one in the row; centering inside the
+  // scroll content keeps short descriptions from sitting above empty space.
+  textScrollContent: { flexGrow: 1, justifyContent: 'center' },
+  description: { fontSize: 15, fontFamily: fonts.bodyMedium, color: colors.textPrimary, lineHeight: 22 },
   dots: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.surfaceBorder, marginHorizontal: 3 },
   dotActive: { width: 18, backgroundColor: colors.magenta },
