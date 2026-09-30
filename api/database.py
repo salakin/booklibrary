@@ -5,10 +5,14 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./booklibrary.db")
 
-# Some providers (e.g. Neon, Render, Heroku-style) hand out "postgres://" URLs,
-# but SQLAlchemy 1.4+ requires the "postgresql://" scheme.
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Providers hand out "postgres://" or bare "postgresql://" URLs. Name the
+# driver explicitly: SQLAlchemy 2.1 changed the bare "postgresql://" default
+# from psycopg2 to psycopg (v3), which isn't installed, so an unqualified URL
+# crashes on startup. URLs that already name a driver are left alone.
+for prefix in ("postgres://", "postgresql://"):
+    if DATABASE_URL.startswith(prefix):
+        DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len(prefix):]
+        break
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
