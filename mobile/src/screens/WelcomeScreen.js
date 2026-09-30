@@ -25,7 +25,7 @@ export default function WelcomeScreen({ navigation }) {
         <View style={styles.logo}>
           <Image source={require('../../assets/musa.jpeg')} style={styles.logoImage} resizeMode="cover" />
         </View>
-        <Text style={styles.title}>LAWBOOK</Text>
+        <Text style={styles.title}>LAW BUSINESS</Text>
         <LinearGradient
           colors={colors.gradientUnderline}
           start={{ x: 0, y: 0 }}
@@ -98,10 +98,11 @@ const styles = StyleSheet.create({
     borderRadius: 51,
   },
   title: {
-    fontSize: 32,
+    fontSize: 24,
     fontFamily: fonts.heading,
     color: colors.textPrimary,
-    letterSpacing: 3,
+    letterSpacing: 1.5,
+    textAlign: 'center',
   },
   underline: {
     width: 64,

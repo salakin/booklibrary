@@ -4,7 +4,7 @@ Monorepo with three parts:
 
 - [api/](api/) — FastAPI backend (booklibrary-api)
 - [admin/](admin/) — React (Vite) admin panel (BookLibrary.Admin)
-- [mobile/](mobile/) — Expo React Native app, branded "Lawbook"
+- [mobile/](mobile/) — Expo React Native app, branded "Law Business"
 
 Each post has a title, author, and long text description — there's no file upload/PDF reading in this app.
 

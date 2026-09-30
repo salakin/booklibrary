@@ -40,7 +40,7 @@ npm run lint       # oxlint
 
 No test suite is configured for this project.
 
-### mobile/ (Expo + React Native, app name "Lawbook")
+### mobile/ (Expo + React Native, app name "Law Business")
 
 ```bash
 cd mobile

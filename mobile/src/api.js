@@ -52,3 +52,14 @@ export async function fetchPosts(bookId, search) {
   }
   return items;
 }
+
+// Newest posts across every book, newest first. The flat `GET /api/posts`
+// route is unpaginated and ordered by `created_at DESC` (not the manual
+// `position` order the per-book routes use), so the first `count` entries are
+// exactly the latest posts — no dedicated endpoint needed.
+export async function fetchLatestPosts(count = 5) {
+  const res = await fetch(`${API_BASE_URL}/api/posts`);
+  if (!res.ok) throw new Error('Failed to load latest posts');
+  const all = await res.json();
+  return all.slice(0, count);
+}

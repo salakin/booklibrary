@@ -39,3 +39,13 @@ export function getCachedPosts(bookId) {
 export function setCachedPosts(bookId, posts) {
   return writeJSON(postsKey(bookId), posts);
 }
+
+const LATEST_POSTS_KEY = 'cache:latestPosts';
+
+export function getCachedLatestPosts() {
+  return readJSON(LATEST_POSTS_KEY);
+}
+
+export function setCachedLatestPosts(posts) {
+  return writeJSON(LATEST_POSTS_KEY, posts);
+}

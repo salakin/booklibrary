@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import NetInfo from '@react-native-community/netinfo';
 import { fetchPosts } from '../api';
 import { getCachedPosts, setCachedPosts } from '../cache';
@@ -20,27 +19,17 @@ import { colors, fonts, radii } from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 400;
 
-// Cycle through distinct gradient pairs so consecutive posts don't all
-// share the same avatar color.
-const AVATAR_PALETTE = [
-  [colors.purple, colors.magenta],
-  [colors.cyan, colors.purple],
-  [colors.magenta, colors.cyan],
-  [colors.purple, colors.cyan],
-];
+// One flat color per avatar, cycled by position so no two consecutive
+// posts share a color.
+const AVATAR_COLORS = [colors.purple, colors.magenta, colors.cyan];
 
 function Avatar({ title, index }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
-  const [colorsFrom, colorsTo] = AVATAR_PALETTE[index % AVATAR_PALETTE.length];
+  const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
   return (
-    <LinearGradient
-      colors={[colorsFrom, colorsTo]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[styles.avatar, styles.avatarCircle]}
-    >
+    <View style={[styles.avatar, styles.avatarCircle, { backgroundColor: color }]}>
       <Text style={styles.avatarLabel}>{initial}</Text>
-    </LinearGradient>
+    </View>
   );
 }
 

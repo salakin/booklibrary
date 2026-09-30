@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Lawbook",
-    "slug": "lawbook",
+    "name": "Law Business",
+    "slug": "law-business",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/lawlogo-icon.png",
@@ -20,7 +20,8 @@
       "favicon": "./assets/lawlogo-icon.png"
     },
     "plugins": [
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "./plugins/withShareTargetQueries.js"
     ]
   }
 }

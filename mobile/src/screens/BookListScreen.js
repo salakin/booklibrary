@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,28 +9,29 @@ import {
   View,
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { fetchBooks } from '../api';
-import { getCachedBooks, setCachedBooks } from '../cache';
+import { fetchBooks, fetchLatestPosts } from '../api';
+import {
+  getCachedBooks,
+  setCachedBooks,
+  getCachedLatestPosts,
+  setCachedLatestPosts,
+} from '../cache';
+import LatestPostsSlider from '../components/LatestPostsSlider';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
 import HexAvatar from '../components/HexAvatar';
 import OfflineBanner from '../components/OfflineBanner';
 import { colors, fonts, radii } from '../theme';
 
-// Cycle through distinct gradient pairs so consecutive books don't all
-// share the same hexagon color.
-const AVATAR_PALETTE = [
-  [colors.purple, colors.magenta],
-  [colors.cyan, colors.purple],
-  [colors.magenta, colors.cyan],
-  [colors.purple, colors.cyan],
-];
+// One flat color per hexagon, cycled by position so no two consecutive
+// books share a color.
+const AVATAR_COLORS = [colors.purple, colors.magenta, colors.cyan];
 
 function Avatar({ title, index }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
-  const [colorsFrom, colorsTo] = AVATAR_PALETTE[index % AVATAR_PALETTE.length];
+  const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
   return (
-    <HexAvatar size={44} label={initial} colorsFrom={colorsFrom} colorsTo={colorsTo} style={styles.avatar} />
+    <HexAvatar size={44} label={initial} colorsFrom={color} colorsTo={color} style={styles.avatar} />
   );
 }
 
@@ -43,6 +44,24 @@ export default function BookListScreen({ navigation }) {
   // Mirrors `books` synchronously so the NetInfo/reconnect listener can read
   // the current list without depending on a stale closure.
   const booksRef = useRef([]);
+  // Newest posts across all books for the top slider. Best-effort: failures
+  // leave whatever is already there (cached or empty = slider hidden).
+  const [latestPosts, setLatestPosts] = useState([]);
+  const bookTitles = useMemo(() => {
+    const map = {};
+    books.forEach((b) => { map[b.id] = b.title; });
+    return map;
+  }, [books]);
+
+  const loadLatest = useCallback(async () => {
+    try {
+      const latest = await fetchLatestPosts(5);
+      setLatestPosts(latest);
+      setCachedLatestPosts(latest);
+    } catch {
+      // Keep current slides; never surface an error for the slider.
+    }
+  }, []);
 
   // Cache-first + background-refresh: fetch the full list live, and on
   // success update the screen and the cache. On failure, keep showing
@@ -58,19 +77,21 @@ export default function BookListScreen({ navigation }) {
       setError(null);
       setIsOffline(false);
       setCachedBooks(all);
+      loadLatest();
     } catch (err) {
       setIsOffline(true);
       if (booksRef.current.length === 0) {
         setError(err.message || 'Something went wrong');
       }
     }
-  }, []);
+  }, [loadLatest]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const cached = await getCachedBooks();
+      const [cached, cachedLatest] = await Promise.all([getCachedBooks(), getCachedLatestPosts()]);
       if (cancelled) return;
+      if (Array.isArray(cachedLatest) && cachedLatest.length > 0) setLatestPosts(cachedLatest);
       if (cached && cached.length > 0) {
         booksRef.current = cached;
         setBooks(cached);
@@ -133,6 +154,13 @@ export default function BookListScreen({ navigation }) {
       <FlatList
         contentContainerStyle={books.length === 0 ? styles.emptyContainer : styles.list}
         data={books}
+        ListHeaderComponent={
+          <LatestPostsSlider
+            posts={latestPosts}
+            bookTitles={bookTitles}
+            onPressPost={(post) => navigation.navigate('PostDetail', { post })}
+          />
+        }
         keyExtractor={(item) => String(item.id)}
         refreshControl={
           <RefreshControl
