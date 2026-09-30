@@ -80,7 +80,7 @@ function SortableBookRow({ book, onSelect, onEdit, onDelete }) {
   )
 }
 
-function SortablePostRow({ post, onEdit, onDelete }) {
+function SortablePostRow({ post, onEdit, onDelete, onToggleHighlight }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: post.id,
   })
@@ -93,6 +93,17 @@ function SortablePostRow({ post, onEdit, onDelete }) {
       </td>
       <td>{post.title}</td>
       <td className="col-description">{truncate(post.description)}</td>
+      <td className="col-highlight">
+        <button
+          type="button"
+          className={post.is_highlighted ? 'highlight-toggle on' : 'highlight-toggle'}
+          aria-pressed={post.is_highlighted}
+          title={post.is_highlighted ? 'Highlighted - click to remove' : 'Click to highlight'}
+          onClick={() => onToggleHighlight(post)}
+        >
+          {post.is_highlighted ? '★ On' : '☆ Off'}
+        </button>
+      </td>
       <td>{formatDate(post.created_at)}</td>
       <td className="row-actions">
         <button className="secondary" onClick={() => onEdit(post)}>
@@ -125,6 +136,7 @@ function App() {
   const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [isHighlighted, setIsHighlighted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
@@ -225,6 +237,7 @@ function App() {
     setEditingId(null)
     setTitle('')
     setDescription('')
+    setIsHighlighted(false)
     setSaveError(null)
   }
 
@@ -232,6 +245,7 @@ function App() {
     setEditingId(post.id)
     setTitle(post.title)
     setDescription(post.description)
+    setIsHighlighted(!!post.is_highlighted)
     setSaveError(null)
   }
 
@@ -242,7 +256,7 @@ function App() {
     setSaving(true)
     setSaveError(null)
     try {
-      const payload = { title, description, book_id: selectedBookId }
+      const payload = { title, description, book_id: selectedBookId, is_highlighted: isHighlighted }
       if (editingId) {
         await updatePost(editingId, payload)
       } else {
@@ -254,6 +268,20 @@ function App() {
       setSaveError(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleToggleHighlight(post) {
+    try {
+      await updatePost(post.id, {
+        title: post.title,
+        description: post.description,
+        book_id: post.book_id,
+        is_highlighted: !post.is_highlighted,
+      })
+      await loadPosts(selectedBookId)
+    } catch (err) {
+      alert(err.message)
     }
   }
 
@@ -434,6 +462,14 @@ function App() {
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={isHighlighted}
+                  onChange={(e) => setIsHighlighted(e.target.checked)}
+                />
+                Highlight in the mobile app slider
+              </label>
               <div className="form-actions">
                 <button type="submit" disabled={saving}>
                   {saving ? 'Saving…' : editingId ? 'Update' : 'Post'}
@@ -466,6 +502,7 @@ function App() {
                       <th className="col-handle"></th>
                       <th>Title</th>
                       <th className="col-description">Description</th>
+                      <th className="col-highlight">Highlight</th>
                       <th>Created</th>
                       <th></th>
                     </tr>
@@ -478,6 +515,7 @@ function App() {
                           post={post}
                           onEdit={handleEditClick}
                           onDelete={handleDelete}
+                          onToggleHighlight={handleToggleHighlight}
                         />
                       ))}
                     </SortableContext>

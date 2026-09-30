@@ -97,7 +97,7 @@ td {
 }
 
 .col-description {
-  width: 45%;
+  width: 35%;
 }
 
 .col-handle {
@@ -174,4 +174,30 @@ button.secondary:disabled {
 .load-more {
   margin-top: 0.75rem;
   text-align: center;
+}
+
+.col-highlight {
+  width: 5.5rem;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+button.highlight-toggle {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button.highlight-toggle.on {
+  border-color: #f59e0b;
+  background: #fef3c7;
+  color: #b45309;
 }

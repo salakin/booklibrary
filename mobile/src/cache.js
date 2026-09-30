@@ -40,12 +40,12 @@ export function setCachedPosts(bookId, posts) {
   return writeJSON(postsKey(bookId), posts);
 }
 
-const LATEST_POSTS_KEY = 'cache:latestPosts';
+const HIGHLIGHTS_KEY = 'cache:highlights';
 
-export function getCachedLatestPosts() {
-  return readJSON(LATEST_POSTS_KEY);
+export function getCachedHighlights() {
+  return readJSON(HIGHLIGHTS_KEY);
 }
 
-export function setCachedLatestPosts(posts) {
-  return writeJSON(LATEST_POSTS_KEY, posts);
+export function setCachedHighlights(posts) {
+  return writeJSON(HIGHLIGHTS_KEY, posts);
 }

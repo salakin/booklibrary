@@ -53,13 +53,12 @@ export async function fetchPosts(bookId, search) {
   return items;
 }
 
-// Newest posts across every book, newest first. The flat `GET /api/posts`
-// route is unpaginated and ordered by `created_at DESC` (not the manual
-// `position` order the per-book routes use), so the first `count` entries are
-// exactly the latest posts — no dedicated endpoint needed.
-export async function fetchLatestPosts(count = 5) {
-  const res = await fetch(`${API_BASE_URL}/api/posts`);
-  if (!res.ok) throw new Error('Failed to load latest posts');
-  const all = await res.json();
-  return all.slice(0, count);
+// Admin-curated highlighted posts for the Books-screen slider. Uses the
+// dedicated endpoint (newest first, server-side limited) instead of
+// downloading every post. Throws on any non-2xx, including 404 from an older
+// backend that doesn't have the route yet; callers treat that as "no slider".
+export async function fetchHighlights(limit = 10) {
+  const res = await fetch(`${API_BASE_URL}/api/posts/highlights?limit=${limit}`);
+  if (!res.ok) throw new Error('Failed to load highlights');
+  return res.json();
 }

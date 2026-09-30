@@ -106,11 +106,11 @@ export async function fetchBookPosts(bookId, { search, limit = PAGE_SIZE, offset
   return res.json()
 }
 
-export async function createPost({ title, description, book_id }) {
+export async function createPost({ title, description, book_id, is_highlighted = false }) {
   const res = await fetch(`${API_BASE_URL}/api/posts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, description, book_id }),
+    body: JSON.stringify({ title, description, book_id, is_highlighted }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -119,11 +119,11 @@ export async function createPost({ title, description, book_id }) {
   return res.json()
 }
 
-export async function updatePost(id, { title, description, book_id }) {
+export async function updatePost(id, { title, description, book_id, is_highlighted }) {
   const res = await fetch(`${API_BASE_URL}/api/posts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, description, book_id }),
+    body: JSON.stringify({ title, description, book_id, is_highlighted }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

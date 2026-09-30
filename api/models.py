@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 
 from database import Base
 
@@ -33,5 +34,8 @@ class Post(Base):
     # Scoped per book (position 0 exists once per book, not once globally).
     # Same nullable-for-migration rationale as Book.position above.
     position = Column(Integer, nullable=True)
+    # Admin-curated flag backing the mobile Books-screen slider. NOT NULL with
+    # a server default so the startup ALTER TABLE works on non-empty tables.
+    is_highlighted = Column(Boolean, nullable=False, default=False, server_default=expression.false())
 
     book = relationship("Book", back_populates="posts")

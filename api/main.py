@@ -18,6 +18,28 @@ Base.metadata.create_all(bind=engine)
 DEFAULT_BOOK_TITLE = "Lawbook Library"
 
 
+def _add_is_highlighted_column_if_missing():
+    """Add `posts.is_highlighted BOOLEAN NOT NULL DEFAULT false` if missing.
+
+    Same constraint as `_add_position_columns_if_missing`: a raw ALTER must
+    happen before any ORM query touches `Post`, because the ORM SELECT lists
+    every mapped column. The DEFAULT literal is dialect-specific (SQLite has
+    no reliable `false` keyword before 3.23; Postgres rejects `0` for a
+    BOOLEAN), and the default fills existing rows so NOT NULL is satisfied.
+    """
+    inspector = inspect(engine)
+    if "posts" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("posts")}
+    if "is_highlighted" in columns:
+        return
+    default = "0" if engine.dialect.name == "sqlite" else "FALSE"
+    with engine.begin() as conn:
+        conn.execute(
+            text(f"ALTER TABLE posts ADD COLUMN is_highlighted BOOLEAN NOT NULL DEFAULT {default}")
+        )
+
+
 def _add_position_columns_if_missing():
     """Schema-only half of the `position` migration — add the column via raw
     ALTER TABLE if missing, nothing else.
@@ -211,6 +233,7 @@ def _backfill_post_positions(db):
 
 
 _add_position_columns_if_missing()
+_add_is_highlighted_column_if_missing()
 _migrate_existing_posts_to_books()
 _drop_legacy_post_author_column()
 _drop_legacy_book_description_column()
@@ -493,6 +516,23 @@ def list_posts(search: str | None = Query(default=None), db: Session = Depends(g
     return query.order_by(models.Post.created_at.desc()).all()
 
 
+# Registered above `/api/posts/{post_id}` so "highlights" is not parsed as an
+# int post_id (which would 422). Order: newest first (`created_at DESC, id DESC`)
+# because `position` is scoped per book and meaningless across books.
+@app.get("/api/posts/highlights", response_model=list[schemas.PostOut])
+def list_highlights(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(models.Post)
+        .filter(models.Post.is_highlighted.is_(True))
+        .order_by(models.Post.created_at.desc(), models.Post.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+
 @app.get("/api/posts/{post_id}", response_model=schemas.PostOut)
 def get_post(post_id: int, db: Session = Depends(get_db)):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
@@ -534,7 +574,9 @@ def update_post(post_id: int, post: schemas.PostUpdate, db: Session = Depends(ge
 
     _require_book(post.book_id, db)
 
-    for field, value in post.model_dump().items():
+    for field, value in post.model_dump(exclude_unset=True).items():
+        if value is None:
+            continue
         setattr(db_post, field, value)
 
     db.commit()

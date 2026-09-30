@@ -8,7 +8,7 @@ const ACCENTS = [colors.purple, colors.magenta, colors.cyan];
 
 // Horizontal, paged, auto-advancing strip of highlighted posts. Renders
 // nothing when there are no posts, so callers can pass [] to hide it.
-export default function LatestPostsSlider({ posts, bookTitles, onPressPost }) {
+export default function HighlightsSlider({ posts, bookTitles, onPressPost }) {
   const { width } = useWindowDimensions();
   const slideWidth = width - H_PADDING * 2;
   const listRef = useRef(null);
@@ -48,7 +48,7 @@ export default function LatestPostsSlider({ posts, bookTitles, onPressPost }) {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.heading}>LATEST POSTS</Text>
+      <Text style={styles.heading}>HIGHLIGHTS</Text>
       <FlatList
         ref={listRef}
         data={posts}
@@ -66,7 +66,7 @@ export default function LatestPostsSlider({ posts, bookTitles, onPressPost }) {
             <TouchableOpacity
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={`Latest post: ${item.title}${book ? `, from ${book}` : ''}`}
+              accessibilityLabel={`Highlighted post: ${item.title}${book ? `, from ${book}` : ''}`}
               style={[styles.slide, { width: slideWidth, borderLeftColor: accent }]}
               onPress={() => onPressPost(item)}
             >

@@ -44,11 +44,13 @@ class PostBase(BaseModel):
 
 
 class PostCreate(PostBase):
-    pass
+    is_highlighted: bool = False
 
 
 class PostUpdate(PostBase):
-    pass
+    # None (omitted) means "leave unchanged", so an older admin build that
+    # doesn't know about highlights can't silently un-highlight a post on edit.
+    is_highlighted: bool | None = None
 
 
 class PostOut(PostBase):
@@ -57,6 +59,7 @@ class PostOut(PostBase):
     id: int
     created_at: datetime
     position: int
+    is_highlighted: bool = False
 
 
 class ReorderRequest(BaseModel):

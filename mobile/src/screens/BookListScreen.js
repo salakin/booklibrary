@@ -9,14 +9,14 @@ import {
   View,
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { fetchBooks, fetchLatestPosts } from '../api';
+import { fetchBooks, fetchHighlights } from '../api';
 import {
   getCachedBooks,
   setCachedBooks,
-  getCachedLatestPosts,
-  setCachedLatestPosts,
+  getCachedHighlights,
+  setCachedHighlights,
 } from '../cache';
-import LatestPostsSlider from '../components/LatestPostsSlider';
+import HighlightsSlider from '../components/HighlightsSlider';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
 import HexAvatar from '../components/HexAvatar';
@@ -44,20 +44,21 @@ export default function BookListScreen({ navigation }) {
   // Mirrors `books` synchronously so the NetInfo/reconnect listener can read
   // the current list without depending on a stale closure.
   const booksRef = useRef([]);
-  // Newest posts across all books for the top slider. Best-effort: failures
+  // Admin-highlighted posts for the top slider. Best-effort: failures
   // leave whatever is already there (cached or empty = slider hidden).
-  const [latestPosts, setLatestPosts] = useState([]);
+  const [highlights, setHighlights] = useState([]);
   const bookTitles = useMemo(() => {
     const map = {};
     books.forEach((b) => { map[b.id] = b.title; });
     return map;
   }, [books]);
 
-  const loadLatest = useCallback(async () => {
+  const loadHighlights = useCallback(async () => {
     try {
-      const latest = await fetchLatestPosts(5);
-      setLatestPosts(latest);
-      setCachedLatestPosts(latest);
+      const items = await fetchHighlights(10);
+      if (!Array.isArray(items)) return;
+      setHighlights(items);
+      setCachedHighlights(items);
     } catch {
       // Keep current slides; never surface an error for the slider.
     }
@@ -77,21 +78,21 @@ export default function BookListScreen({ navigation }) {
       setError(null);
       setIsOffline(false);
       setCachedBooks(all);
-      loadLatest();
+      loadHighlights();
     } catch (err) {
       setIsOffline(true);
       if (booksRef.current.length === 0) {
         setError(err.message || 'Something went wrong');
       }
     }
-  }, [loadLatest]);
+  }, [loadHighlights]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [cached, cachedLatest] = await Promise.all([getCachedBooks(), getCachedLatestPosts()]);
+      const [cached, cachedHighlights] = await Promise.all([getCachedBooks(), getCachedHighlights()]);
       if (cancelled) return;
-      if (Array.isArray(cachedLatest) && cachedLatest.length > 0) setLatestPosts(cachedLatest);
+      if (Array.isArray(cachedHighlights) && cachedHighlights.length > 0) setHighlights(cachedHighlights);
       if (cached && cached.length > 0) {
         booksRef.current = cached;
         setBooks(cached);
@@ -155,8 +156,8 @@ export default function BookListScreen({ navigation }) {
         contentContainerStyle={books.length === 0 ? styles.emptyContainer : styles.list}
         data={books}
         ListHeaderComponent={
-          <LatestPostsSlider
-            posts={latestPosts}
+          <HighlightsSlider
+            posts={highlights}
             bookTitles={bookTitles}
             onPressPost={(post) => navigation.navigate('PostDetail', { post })}
           />
