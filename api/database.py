@@ -16,7 +16,10 @@ for prefix in ("postgres://", "postgresql://"):
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+# pool_pre_ping: Neon suspends idle databases, which silently kills pooled
+# connections; without a ping the first request after a quiet spell hits a
+# dead connection and fails with a 500.
+engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
