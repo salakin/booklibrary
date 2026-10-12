@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import { colors, fonts, radii } from '../theme';
+import Svg, { Path, Rect } from 'react-native-svg';
+import { colors, fonts } from '../theme';
 
-const H_PADDING = 12; // matches the books list's own horizontal padding
-const ACCENTS = [colors.purple, colors.magenta, colors.cyan];
-// Long descriptions scroll inside the card instead of growing the slider.
-const MAX_TEXT_HEIGHT = 200;
-// After the user swipes or scrolls a card, wait this long before resuming.
+const HERO_HEIGHT = 260;
+// Long descriptions scroll inside the banner instead of growing it.
+const MAX_TEXT_HEIGHT = 150;
+// After the user swipes or scrolls a slide, wait this long before resuming.
 const RESUME_AFTER_MS = 8000;
 
 // Each slide stays up long enough to actually read its full description.
@@ -15,12 +15,39 @@ function dwellFor(post) {
   return Math.min(15000, Math.max(4500, length * 50));
 }
 
-// Horizontal, paged, auto-advancing strip of highlighted posts showing each
-// post's full description. Renders nothing when there are no posts, so
-// callers can pass [] to hide it.
-export default function HighlightsSlider({ posts, onPressPost }) {
+const BUILDINGS = [
+  [0, 60, 30, 30], [32, 48, 22, 42], [56, 66, 26, 24], [84, 40, 18, 50], [104, 58, 30, 32],
+  [266, 58, 30, 32], [298, 40, 18, 50], [318, 66, 26, 24], [346, 48, 22, 42], [370, 60, 30, 30],
+];
+const COLUMNS = [158, 173, 188, 204, 219, 234];
+
+// Faint courthouse-and-city skyline along the bottom of the banner.
+function Skyline({ width, bottom }) {
+  const height = (width * 90) / 400;
+  return (
+    <Svg width={width} height={height} viewBox="0 0 400 90" style={[styles.skyline, { bottom }]} pointerEvents="none">
+      {BUILDINGS.map(([x, y, w, h]) => (
+        <Rect key={x} x={x} y={y} width={w} height={h} fill={colors.white} fillOpacity={0.1} />
+      ))}
+      <Path d="M150 34 L200 12 L250 34 Z" fill={colors.white} fillOpacity={0.14} />
+      <Rect x={150} y={34} width={100} height={6} fill={colors.white} fillOpacity={0.14} />
+      {COLUMNS.map((x) => (
+        <Rect key={x} x={x} y={42} width={8} height={34} fill={colors.white} fillOpacity={0.14} />
+      ))}
+      <Rect x={148} y={76} width={104} height={6} fill={colors.white} fillOpacity={0.14} />
+      <Rect x={140} y={82} width={120} height={8} fill={colors.white} fillOpacity={0.14} />
+    </Svg>
+  );
+}
+
+// Full-width, auto-advancing hero banner of highlighted posts: each slide is
+// the post's full description as a centered quote, with its book as the
+// source line. Renders nothing when there are no posts. `overlap` is how far
+// something below (the shortcut card) covers the banner's bottom edge; the
+// banner grows by that much and keeps its dots and skyline above it.
+export default function HighlightsSlider({ posts, bookTitles, onPressPost, overlap = 0 }) {
+  const heroHeight = HERO_HEIGHT + overlap;
   const { width } = useWindowDimensions();
-  const slideWidth = width - H_PADDING * 2;
   const listRef = useRef(null);
   const indexRef = useRef(0);
   const timerRef = useRef(null);
@@ -35,9 +62,9 @@ export default function HighlightsSlider({ posts, onPressPost }) {
       const next = (indexRef.current + 1) % count;
       indexRef.current = next;
       setIndex(next);
-      listRef.current?.scrollToOffset({ offset: next * slideWidth, animated: true });
+      listRef.current?.scrollToOffset({ offset: next * width, animated: true });
     }, delay);
-  }, [count, slideWidth]);
+  }, [count, width]);
 
   const pause = useCallback(() => {
     clearTimeout(timerRef.current);
@@ -61,7 +88,7 @@ export default function HighlightsSlider({ posts, onPressPost }) {
   }, [count]);
 
   const onScrollEnd = useCallback((e) => {
-    const i = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
+    const i = Math.round(e.nativeEvent.contentOffset.x / width);
     if (i === indexRef.current) {
       // Swiped back to the same slide: the index effect won't rerun.
       schedule(RESUME_AFTER_MS);
@@ -70,12 +97,13 @@ export default function HighlightsSlider({ posts, onPressPost }) {
     interactedRef.current = true;
     indexRef.current = i;
     setIndex(i);
-  }, [slideWidth, schedule]);
+  }, [width, schedule]);
 
   if (count === 0) return null;
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.hero, { height: heroHeight }, overlap ? { marginBottom: 0 } : null]}>
+      <Skyline width={width} bottom={overlap} />
       <FlatList
         ref={listRef}
         data={posts}
@@ -83,32 +111,35 @@ export default function HighlightsSlider({ posts, onPressPost }) {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(p) => String(p.id)}
-        getItemLayout={(_, i) => ({ length: slideWidth, offset: slideWidth * i, index: i })}
+        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
         onScrollBeginDrag={pause}
         onMomentumScrollEnd={onScrollEnd}
-        renderItem={({ item, index: i }) => (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={`Highlighted post: ${item.title}`}
-            style={[styles.slide, { width: slideWidth, borderLeftColor: ACCENTS[i % ACCENTS.length] }]}
-            onPress={() => onPressPost(item)}
-          >
-            <ScrollView
-              style={styles.textScroll}
-              contentContainerStyle={styles.textScrollContent}
-              nestedScrollEnabled
-              showsVerticalScrollIndicator
-              onScrollBeginDrag={pause}
-              onScrollEndDrag={() => schedule(RESUME_AFTER_MS)}
+        renderItem={({ item }) => {
+          const book = bookTitles?.[item.book_id];
+          return (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Highlighted post: ${item.title}${book ? `, from ${book}` : ''}`}
+              style={[styles.slide, { width, height: heroHeight, paddingBottom: 36 + overlap }]}
+              onPress={() => onPressPost(item)}
             >
-              <Text style={styles.description}>{(item.description || '').trim()}</Text>
-            </ScrollView>
-          </TouchableOpacity>
-        )}
+              <ScrollView
+                style={styles.textScroll}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                onScrollBeginDrag={pause}
+                onScrollEndDrag={() => schedule(RESUME_AFTER_MS)}
+              >
+                <Text style={styles.quote}>{`“${(item.description || '').trim()}”`}</Text>
+              </ScrollView>
+              {!!book && <Text style={styles.source} numberOfLines={1}>{`[${book}]`}</Text>}
+            </TouchableOpacity>
+          );
+        }}
       />
       {count > 1 && (
-        <View style={styles.dots}>
+        <View style={[styles.dots, { bottom: 12 + overlap }]} pointerEvents="none">
           {posts.map((p, i) => (
             <View key={p.id} style={[styles.dot, i === index && styles.dotActive]} />
           ))}
@@ -119,22 +150,30 @@ export default function HighlightsSlider({ posts, onPressPost }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: 12 },
-  slide: {
-    minHeight: 80,
-    padding: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderLeftWidth: 5,
-    borderRadius: radii.lg,
+  // Only the bottom corners round; the top joins the header seamlessly.
+  hero: {
+    height: HERO_HEIGHT,
+    backgroundColor: colors.hero,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
-  textScroll: { maxHeight: MAX_TEXT_HEIGHT },
-  // Cards stretch to the tallest one in the row; centering inside the
-  // scroll content keeps short descriptions from sitting above empty space.
-  textScrollContent: { flexGrow: 1, justifyContent: 'center' },
-  description: { fontSize: 15, fontFamily: fonts.bodyMedium, color: colors.textPrimary, lineHeight: 22 },
-  dots: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.surfaceBorder, marginHorizontal: 3 },
-  dotActive: { width: 18, backgroundColor: colors.magenta },
+  skyline: { position: 'absolute', left: 0, bottom: 0 },
+  slide: {
+    height: HERO_HEIGHT,
+    paddingHorizontal: 28,
+    paddingTop: 12,
+    paddingBottom: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // flexGrow 0: ScrollView fills its parent by default, which would push the
+  // source line to the bottom instead of keeping quote + source centered.
+  textScroll: { flexGrow: 0, maxHeight: MAX_TEXT_HEIGHT },
+  quote: { fontSize: 16, lineHeight: 26, fontFamily: fonts.bodyMedium, color: colors.white, textAlign: 'center' },
+  source: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.white, opacity: 0.85, marginTop: 14 },
+  dots: { position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)', marginHorizontal: 3 },
+  dotActive: { width: 18, backgroundColor: colors.white },
 });

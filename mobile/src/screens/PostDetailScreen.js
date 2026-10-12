@@ -4,6 +4,7 @@ import { Linking, Platform, ScrollView, Share, StyleSheet, Text, ToastAndroid, T
 import * as Clipboard from 'expo-clipboard';
 import { FontAwesome } from '@expo/vector-icons';
 import ScreenBackground from '../components/ScreenBackground';
+import { isPostSaved, toggleSavedPost } from '../saved';
 import { colors, fonts, radii, spacing } from '../theme';
 
 // How long the Copy button shows its "Copied" confirmation state before
@@ -113,6 +114,7 @@ async function openAppOrCopyFallback(post, appUrl, webUrl, appName) {
 export default function PostDetailScreen({ route }) {
   const { post } = route.params;
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
   const copyTimerRef = useRef(null);
 
   useEffect(() => {
@@ -120,6 +122,18 @@ export default function PostDetailScreen({ route }) {
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    isPostSaved(post.id).then((value) => {
+      if (active) setSaved(value);
+    });
+    return () => { active = false; };
+  }, [post.id]);
+
+  async function handleToggleSaved() {
+    setSaved(await toggleSavedPost(post));
+  }
 
   async function handleCopy() {
     await Clipboard.setStringAsync(buildFullText(post));
@@ -205,6 +219,16 @@ export default function PostDetailScreen({ route }) {
           >
             <FontAwesome name="share-alt" size={16} color={colors.magenta} />
             <Text style={styles.actionText}>Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            activeOpacity={0.7}
+            onPress={handleToggleSaved}
+            accessibilityRole="button"
+            accessibilityLabel={saved ? 'Remove from saved posts' : 'Save post'}
+          >
+            <FontAwesome name={saved ? 'bookmark' : 'bookmark-o'} size={16} color={colors.hero} />
+            <Text style={styles.actionText}>{saved ? 'Saved' : 'Save'}</Text>
           </TouchableOpacity>
         </View>
 

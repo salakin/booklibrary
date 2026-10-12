@@ -502,8 +502,14 @@ def reorder_posts(book_id: int, payload: schemas.ReorderRequest, db: Session = D
 # from `post_count` on `GET /api/books`, so no client calls this route any
 # more. Kept as-is for ad-hoc/debug use rather than changed, since changing
 # the shape of a route nothing consumes buys nothing.
+# Newest first. `limit` is optional and omitting it returns every post — the
+# daily backup (scripts/backup.py) depends on that, so don't make it required.
 @app.get("/api/posts", response_model=list[schemas.PostOut])
-def list_posts(search: str | None = Query(default=None), db: Session = Depends(get_db)):
+def list_posts(
+    search: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=MAX_PAGE_SIZE),
+    db: Session = Depends(get_db),
+):
     query = db.query(models.Post)
     if search:
         pattern = f"%{search}%"
@@ -513,7 +519,10 @@ def list_posts(search: str | None = Query(default=None), db: Session = Depends(g
                 models.Post.description.ilike(pattern),
             )
         )
-    return query.order_by(models.Post.created_at.desc()).all()
+    query = query.order_by(models.Post.created_at.desc(), models.Post.id.desc())
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()
 
 
 # Registered above `/api/posts/{post_id}` so "highlights" is not parsed as an

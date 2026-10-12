@@ -15,28 +15,10 @@ import { getCachedPosts, setCachedPosts } from '../cache';
 import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
 import OfflineBanner from '../components/OfflineBanner';
+import PostRow from '../components/PostRow';
 import { colors, fonts, radii } from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 400;
-
-// One flat color per avatar, cycled by position so no two consecutive
-// posts share a color.
-const AVATAR_COLORS = [colors.purple, colors.magenta, colors.cyan];
-
-function Avatar({ title, index }) {
-  const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
-  const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
-  return (
-    <View style={[styles.avatar, styles.avatarCircle, { backgroundColor: color }]}>
-      <Text style={styles.avatarLabel}>{initial}</Text>
-    </View>
-  );
-}
-
-function truncate(text, max = 100) {
-  if (!text) return '';
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
 
 // Same substring predicate used both as the online safety-net filter (in
 // case the API hasn't picked up server-side search yet) and as the entire
@@ -263,16 +245,11 @@ export default function HomeScreen({ navigation, route }) {
           </View>
         }
         renderItem={({ item, index }) => (
-          <TouchableOpacity
-            style={styles.row}
+          <PostRow
+            post={item}
+            index={index}
             onPress={() => navigation.navigate('PostDetail', { post: item })}
-          >
-            <Avatar title={item.title} index={index} />
-            <View style={styles.rowText}>
-              <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-              <Text style={styles.preview} numberOfLines={2}>{truncate(item.description)}</Text>
-            </View>
-          </TouchableOpacity>
+          />
         )}
       />
     </ScreenBackground>
@@ -299,38 +276,6 @@ const styles = StyleSheet.create({
   list: { padding: 12 },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  row: {
-    flexDirection: 'row',
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radii.md,
-    shadowColor: colors.shadowPurple,
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    marginRight: 14,
-  },
-  avatarCircle: {
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLabel: {
-    color: colors.white,
-    fontFamily: fonts.heading,
-    fontSize: 18,
-  },
-  rowText: { flex: 1 },
-  title: { fontSize: 16, fontFamily: fonts.body, color: colors.textPrimary },
-  preview: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textMuted, marginTop: 4 },
   errorText: { fontSize: 16, fontFamily: fonts.body, color: colors.danger, marginBottom: 6 },
   errorDetail: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 },
   emptyText: { fontSize: 16, fontFamily: fonts.body, color: colors.textPrimary, marginBottom: 4 },

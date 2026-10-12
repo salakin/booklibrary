@@ -4,18 +4,26 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
 import { View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import { useFonts, Orbitron_700Bold, Orbitron_800ExtraBold } from '@expo-google-fonts/orbitron';
-import { Rajdhani_500Medium, Rajdhani_600SemiBold, Rajdhani_700Bold } from '@expo-google-fonts/rajdhani';
+import {
+  useFonts,
+  HindSiliguri_400Regular,
+  HindSiliguri_500Medium,
+  HindSiliguri_600SemiBold,
+  HindSiliguri_700Bold,
+} from '@expo-google-fonts/hind-siliguri';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import BookListScreen from './src/screens/BookListScreen';
+import LatestScreen from './src/screens/LatestScreen';
+import SearchScreen from './src/screens/SearchScreen';
+import SavedScreen from './src/screens/SavedScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
-import { colors } from './src/theme';
+import { colors, fonts } from './src/theme';
 
 const Stack = createNativeStackNavigator();
 
 // Keep the native splash screen up until fonts are loaded, instead of
-// flashing system-font text before Orbitron/Rajdhani are ready.
+// flashing system-font text before the app font is ready.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Neon Arcade - Light nav theme: light-lavender background/surfaces so
@@ -35,11 +43,10 @@ const navigationTheme = {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Orbitron_700Bold,
-    Orbitron_800ExtraBold,
-    Rajdhani_500Medium,
-    Rajdhani_600SemiBold,
-    Rajdhani_700Bold,
+    HindSiliguri_400Regular,
+    HindSiliguri_500Medium,
+    HindSiliguri_600SemiBold,
+    HindSiliguri_700Bold,
   });
 
   const onLayoutRootView = useCallback(async () => {
@@ -66,16 +73,31 @@ export default function App() {
         screenOptions={{
           headerStyle: { backgroundColor: colors.surface },
           headerTintColor: colors.textPrimary,
-          headerTitleStyle: { color: colors.textPrimary, fontFamily: 'Orbitron_700Bold', letterSpacing: 0.5, fontSize: 16 },
+          headerTitleStyle: { color: colors.textPrimary, fontFamily: fonts.headingBold, fontSize: 17 },
         }}
       >
         <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="BookList" component={BookListScreen} options={{ title: 'BOOKS' }} />
+        <Stack.Screen
+          name="BookList"
+          component={BookListScreen}
+          options={{
+            title: 'BOOKS',
+            headerTitleAlign: 'center',
+            // Same color as the hero banner below it, so the two read as one block.
+            headerStyle: { backgroundColor: colors.hero },
+            headerTintColor: colors.white,
+            headerTitleStyle: { color: colors.white, fontFamily: fonts.headingBold, fontSize: 17 },
+            headerShadowVisible: false,
+          }}
+        />
         <Stack.Screen
           name="Home"
           component={HomeScreen}
           options={({ route }) => ({ title: (route.params?.bookTitle ?? 'Posts').toUpperCase() })}
         />
+        <Stack.Screen name="Latest" component={LatestScreen} options={{ title: 'LATEST' }} />
+        <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'SEARCH' }} />
+        <Stack.Screen name="Saved" component={SavedScreen} options={{ title: 'SAVED' }} />
         <Stack.Screen
           name="PostDetail"
           component={PostDetailScreen}

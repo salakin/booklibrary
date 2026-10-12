@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,17 +24,32 @@ import ScreenBackground from '../components/ScreenBackground';
 import Button from '../components/Button';
 import HexAvatar from '../components/HexAvatar';
 import OfflineBanner from '../components/OfflineBanner';
+import QuickActions from '../components/QuickActions';
 import { colors, fonts, radii } from '../theme';
 
-// One flat color per hexagon, cycled by position so no two consecutive
-// books share a color.
-const AVATAR_COLORS = [colors.purple, colors.magenta, colors.cyan];
+// How far the shortcut card overlaps the bottom of the hero banner.
+const CARD_OVERLAP = 36;
+
+// There's no public download page yet; add the link here once there is one.
+const SHARE_APP_MESSAGE =
+  'Law Business — বাংলাদেশের আইন ও আইনি তথ্য এক অ্যাপে।\nLaw Business: Bangladeshi laws and legal posts in one app.';
+
+function shareApp() {
+  // A dismissed share sheet resolves normally; only real failures land here.
+  Share.share({ message: SHARE_APP_MESSAGE }).catch(() => {});
+}
+
+const BENGALI_DIGITS = '০১২৩৪৫৬৭৮৯';
+
+function toBengaliDigits(n) {
+  return String(n).replace(/\d/g, (d) => BENGALI_DIGITS[d]);
+}
 
 function Avatar({ title, index }) {
   const initial = title?.trim()?.charAt(0)?.toUpperCase() || '?';
-  const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
+  const { bg, fg } = colors.avatarPalette[index % colors.avatarPalette.length];
   return (
-    <HexAvatar size={44} label={initial} colorsFrom={color} colorsTo={color} style={styles.avatar} />
+    <HexAvatar size={44} label={initial} colorsFrom={bg} colorsTo={bg} labelColor={fg} style={styles.avatar} />
   );
 }
 
@@ -47,6 +65,19 @@ export default function BookListScreen({ navigation }) {
   // Admin-highlighted posts for the top slider. Best-effort: failures
   // leave whatever is already there (cached or empty = slider hidden).
   const [highlights, setHighlights] = useState([]);
+  const isFocused = useIsFocused();
+  const quickActions = [
+    { label: 'সর্বশেষ', icon: 'clock-o', color: colors.cyan, onPress: () => navigation.navigate('Latest') },
+    { label: 'খুঁজুন', icon: 'search', color: colors.purple, onPress: () => navigation.navigate('Search') },
+    { label: 'সংরক্ষিত', icon: 'bookmark', color: colors.hero, onPress: () => navigation.navigate('Saved') },
+    { label: 'শেয়ার', icon: 'share-alt', color: colors.magenta, onPress: shareApp },
+  ];
+  // Book names shown as each highlight's source line.
+  const bookTitles = useMemo(() => {
+    const map = {};
+    books.forEach((b) => { map[b.id] = b.title; });
+    return map;
+  }, [books]);
 
   const loadHighlights = useCallback(async () => {
     try {
@@ -146,15 +177,30 @@ export default function BookListScreen({ navigation }) {
 
   return (
     <ScreenBackground style={styles.container}>
+      {/* Light icons on the colored header, only while this screen is shown. */}
+      {isFocused && <StatusBar style="light" />}
       {isOffline && <OfflineBanner />}
       <FlatList
         contentContainerStyle={books.length === 0 ? styles.emptyContainer : styles.list}
         data={books}
         ListHeaderComponent={
-          <HighlightsSlider
-            posts={highlights}
-            onPressPost={(post) => navigation.navigate('PostDetail', { post })}
-          />
+          <>
+            {highlights.length > 0 ? (
+              <HighlightsSlider
+                posts={highlights}
+                bookTitles={bookTitles}
+                overlap={CARD_OVERLAP}
+                onPressPost={(post) => navigation.navigate('PostDetail', { post })}
+              />
+            ) : (
+              <View style={styles.headerSpacer} />
+            )}
+            <QuickActions overlap={highlights.length > 0 ? CARD_OVERLAP : 0} actions={quickActions} />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>সব আইনের বই</Text>
+              <Text style={styles.sectionCount}>{`${toBengaliDigits(books.length)}টি বই`}</Text>
+            </View>
+          </>
         }
         keyExtractor={(item) => String(item.id)}
         refreshControl={
@@ -192,12 +238,26 @@ export default function BookListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 12 },
+  // No horizontal padding here so the hero banner can run edge to edge;
+  // rows get their side margins instead.
+  list: { paddingBottom: 12 },
+  headerSpacer: { height: 12 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 22,
+    marginBottom: 10,
+  },
+  sectionTitle: { fontSize: 18, fontFamily: fonts.body, color: colors.textPrimary },
+  sectionCount: { fontSize: 14, fontFamily: fonts.bodyMedium, color: colors.textSecondary },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   row: {
     flexDirection: 'row',
     padding: 12,
+    marginHorizontal: 12,
     marginBottom: 10,
     backgroundColor: colors.surface,
     borderWidth: 1,

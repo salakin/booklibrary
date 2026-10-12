@@ -39,6 +39,7 @@ export default function HexAvatar({
   frameWidth = 6,
   colorsFrom = colors.magenta,
   colorsTo = colors.purple,
+  labelColor = colors.white,
   textSize,
   style,
 }) {
@@ -83,7 +84,7 @@ export default function HexAvatar({
       </Svg>
       {!imageSource && (
         <View style={styles.content} pointerEvents="none">
-          {children ?? <Text style={[styles.label, { fontSize }]}>{label}</Text>}
+          {children ?? <Text style={[styles.label, { fontSize, color: labelColor }]}>{label}</Text>}
         </View>
       )}
     </View>

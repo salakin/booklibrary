@@ -49,3 +49,13 @@ export function getCachedHighlights() {
 export function setCachedHighlights(posts) {
   return writeJSON(HIGHLIGHTS_KEY, posts);
 }
+
+const LATEST_KEY = 'cache:latest';
+
+export function getCachedLatest() {
+  return readJSON(LATEST_KEY);
+}
+
+export function setCachedLatest(posts) {
+  return writeJSON(LATEST_KEY, posts);
+}

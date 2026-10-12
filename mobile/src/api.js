@@ -62,3 +62,23 @@ export async function fetchHighlights(limit = 10) {
   if (!res.ok) throw new Error('Failed to load highlights');
   return res.json();
 }
+
+// Newest posts across every book, optionally filtered by a search term.
+// Sliced here as well as limited server-side, so an older backend that
+// ignores `limit` still yields the right number of rows.
+async function fetchAllPosts(search, limit) {
+  const params = [`limit=${limit}`];
+  if (search) params.push(`search=${encodeURIComponent(search)}`);
+  const res = await fetch(`${API_BASE_URL}/api/posts?${params.join('&')}`);
+  if (!res.ok) throw new Error('Failed to load posts');
+  const posts = await res.json();
+  return posts.slice(0, limit);
+}
+
+export function fetchLatestPosts(limit = 30) {
+  return fetchAllPosts(null, limit);
+}
+
+export function searchAllPosts(term, limit = 50) {
+  return fetchAllPosts(term, limit);
+}
